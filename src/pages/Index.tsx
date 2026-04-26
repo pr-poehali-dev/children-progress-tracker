@@ -213,46 +213,38 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
 // ─── Admin View ───────────────────────────────────────────────────────────────
 function AdminView({ onBack }: { onBack: () => void }) {
   const [children, setChildren] = useState<Child[]>(loadData);
-  const [selected, setSelected] = useState<string>(children[0]?.id ?? "");
-  const [newChildName, setNewChildName] = useState("");
-  const [newChildLogin, setNewChildLogin] = useState("");
-  const [addingChild, setAddingChild] = useState(false);
   const [newWeek, setNewWeek] = useState("");
   const [saved, setSaved] = useState(false);
+  const [addingChild, setAddingChild] = useState(false);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChildLogin, setNewChildLogin] = useState("");
 
-  const child = children.find((c) => c.id === selected);
+  // все недели берём из первого ребёнка (они синхронны)
+  const weeks = children[0]?.entries.map((e) => e.week) ?? [];
 
-  const updateScore = (weekIdx: number, val: string) => {
+  const updateScore = (childId: string, weekIdx: number, val: string) => {
     const num = val === "" ? null : Number(val);
     setChildren((prev) =>
       prev.map((c) =>
-        c.id !== selected
+        c.id !== childId
           ? c
-          : {
-              ...c,
-              entries: c.entries.map((e, i) =>
-                i === weekIdx ? { ...e, score: num } : e
-              ),
-            }
+          : { ...c, entries: c.entries.map((e, i) => (i === weekIdx ? { ...e, score: num } : e)) }
       )
+    );
+  };
+
+  const updateSystem = (childId: string, sys: System) => {
+    setChildren((prev) =>
+      prev.map((c) => (c.id !== childId ? c : { ...c, system: sys }))
     );
   };
 
   const addWeek = () => {
     if (!newWeek.trim()) return;
     setChildren((prev) =>
-      prev.map((c) => ({
-        ...c,
-        entries: [...c.entries, { week: newWeek.trim(), score: null }],
-      }))
+      prev.map((c) => ({ ...c, entries: [...c.entries, { week: newWeek.trim(), score: null }] }))
     );
     setNewWeek("");
-  };
-
-  const updateSystem = (sys: System) => {
-    setChildren((prev) =>
-      prev.map((c) => (c.id !== selected ? c : { ...c, system: sys }))
-    );
   };
 
   const addChild = () => {
@@ -262,10 +254,9 @@ function AdminView({ onBack }: { onBack: () => void }) {
       name: newChildName.trim(),
       parentLogin: newChildLogin.trim().toLowerCase(),
       system: 1,
-      entries: children[0]?.entries.map((e) => ({ week: e.week, score: null })) ?? [],
+      entries: weeks.map((w) => ({ week: w, score: null })),
     };
     setChildren((prev) => [...prev, newC]);
-    setSelected(newC.id);
     setNewChildName("");
     setNewChildLogin("");
     setAddingChild(false);
@@ -277,10 +268,13 @@ function AdminView({ onBack }: { onBack: () => void }) {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const NAME_W = 180; // px — ширина липкой колонки с именем
+  const CELL_W = 72;  // px — ширина ячейки с баллом
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-white soft-shadow sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="bg-white soft-shadow sticky top-0 z-20">
+        <div className="px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
@@ -288,148 +282,168 @@ function AdminView({ onBack }: { onBack: () => void }) {
             <span className="text-lg">🏫</span>
             <p className="font-bold text-foreground">Администратор — баллы</p>
           </div>
-          <button
-            onClick={handleSave}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-              saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
-            }`}
-          >
-            <Icon name={saved ? "Check" : "Save"} size={15} />
-            {saved ? "Сохранено!" : "Сохранить"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAddingChild(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+            >
+              <Icon name="UserPlus" size={15} />
+              Ребёнок
+            </button>
+            <button
+              onClick={handleSave}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
+              }`}
+            >
+              <Icon name={saved ? "Check" : "Save"} size={15} />
+              {saved ? "Сохранено!" : "Сохранить"}
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col md:flex-row gap-5">
-        {/* Sidebar — child list */}
-        <aside className="md:w-56 flex-shrink-0">
-          <div className="bg-white rounded-2xl soft-shadow p-3 space-y-1">
-            {children.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelected(c.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors ${
-                  selected === c.id
-                    ? "bg-blue-50 text-blue-700 font-semibold"
-                    : "text-foreground hover:bg-muted/60"
-                }`}
-              >
-                <p className="truncate">{c.name}</p>
-                <p className="text-xs text-muted-foreground">@{c.parentLogin}</p>
+      {/* Модалка добавления ребёнка */}
+      {addingChild && (
+        <div className="fixed inset-0 bg-black/30 z-30 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl soft-shadow-lg p-6 w-full max-w-sm space-y-3">
+            <h3 className="font-bold text-foreground mb-1">Новый ребёнок</h3>
+            <input
+              autoFocus
+              placeholder="Имя ребёнка"
+              value={newChildName}
+              onChange={(e) => setNewChildName(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-border text-sm outline-none focus:border-blue-300"
+            />
+            <input
+              placeholder="Логин родителя"
+              value={newChildLogin}
+              onChange={(e) => setNewChildLogin(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addChild()}
+              className="w-full px-3 py-2 rounded-xl border border-border text-sm outline-none focus:border-blue-300"
+            />
+            <div className="flex gap-2 pt-1">
+              <button onClick={addChild} className="flex-1 py-2 bg-blue-500 text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors">
+                Добавить
               </button>
-            ))}
-
-            {addingChild ? (
-              <div className="pt-2 space-y-2">
-                <input
-                  autoFocus
-                  placeholder="Имя ребёнка"
-                  value={newChildName}
-                  onChange={(e) => setNewChildName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-border text-sm outline-none focus:border-blue-300"
-                />
-                <input
-                  placeholder="Логин родителя"
-                  value={newChildLogin}
-                  onChange={(e) => setNewChildLogin(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addChild()}
-                  className="w-full px-3 py-2 rounded-xl border border-border text-sm outline-none focus:border-blue-300"
-                />
-                <div className="flex gap-2">
-                  <button onClick={addChild} className="flex-1 py-2 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition-colors">
-                    Добавить
-                  </button>
-                  <button onClick={() => setAddingChild(false)} className="flex-1 py-2 bg-muted text-muted-foreground text-xs rounded-lg hover:bg-muted/80 transition-colors">
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setAddingChild(true)}
-                className="w-full py-2 mt-1 rounded-xl border-2 border-dashed border-blue-200 text-blue-400 text-xs font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
-              >
-                <Icon name="Plus" size={13} />
-                Добавить ребёнка
+              <button onClick={() => setAddingChild(false)} className="flex-1 py-2 bg-muted text-muted-foreground text-sm rounded-xl hover:bg-muted/80 transition-colors">
+                Отмена
               </button>
-            )}
+            </div>
           </div>
-        </aside>
+        </div>
+      )}
 
-        {/* Main — scores table */}
-        <div className="flex-1 min-w-0">
-          {child ? (
-            <div className="bg-white rounded-2xl soft-shadow p-5">
-              <h2 className="font-bold text-lg text-foreground mb-1">{child.name}</h2>
-              <div className="flex flex-wrap items-center gap-3 mb-5">
-                <p className="text-xs text-muted-foreground">Логин родителя: <span className="font-mono font-semibold text-foreground">@{child.parentLogin}</span></p>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground mr-1">Система:</span>
-                  {([1, 2, 3] as System[]).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => updateSystem(s)}
-                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
-                        child.system === s
-                          ? "bg-blue-500 text-white"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+      <div className="p-4">
+        <div className="bg-white rounded-2xl soft-shadow overflow-hidden">
+          {/* Таблица с горизонтальным скроллом */}
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: `${NAME_W + weeks.length * CELL_W + 120}px` }}>
+
+              {/* Шапка */}
+              <div className="flex border-b border-border bg-muted/40" style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                {/* Липкая ячейка — имя */}
+                <div
+                  className="flex-shrink-0 px-4 py-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide border-r border-border bg-muted/40"
+                  style={{ width: NAME_W, position: "sticky", left: 0, zIndex: 11, backgroundColor: "#f8fafc" }}
+                >
+                  Ученик
                 </div>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                {child.entries.map((e, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground w-20 flex-shrink-0">{e.week}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={e.score ?? ""}
-                      onChange={(ev) => updateScore(i, ev.target.value)}
-                      placeholder="—"
-                      className="w-24 px-3 py-2 rounded-xl border border-border text-sm font-semibold text-foreground outline-none focus:border-blue-400 transition-colors text-center"
-                    />
-                    {e.score !== null && (
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden max-w-48">
-                        <div
-                          className="h-full bg-blue-400 rounded-full transition-all"
-                          style={{
-                            width: `${Math.min((e.score / Math.max(...child.entries.filter(x => x.score !== null).map(x => x.score as number), 1)) * 100, 100)}%`,
-                          }}
-                        />
-                      </div>
-                    )}
+                {/* Колонки с неделями */}
+                {weeks.map((w, i) => (
+                  <div
+                    key={i}
+                    className="flex-shrink-0 text-center px-1 py-3 text-xs font-semibold text-muted-foreground border-r border-border last:border-r-0"
+                    style={{ width: CELL_W }}
+                  >
+                    {w}
                   </div>
                 ))}
+                {/* Колонка система */}
+                <div className="flex-shrink-0 px-3 py-3 text-xs font-semibold text-muted-foreground text-center" style={{ width: 100 }}>
+                  Система
+                </div>
               </div>
 
-              {/* Add week */}
-              <div className="flex items-center gap-2 pt-4 border-t border-border">
-                <input
-                  placeholder="Название недели (напр. «25 ноя»)"
-                  value={newWeek}
-                  onChange={(e) => setNewWeek(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addWeek()}
-                  className="flex-1 px-3 py-2 rounded-xl border border-border text-sm outline-none focus:border-blue-300 transition-colors"
-                />
-                <button
-                  onClick={addWeek}
-                  className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-1.5"
+              {/* Строки детей */}
+              {children.map((c, ri) => (
+                <div
+                  key={c.id}
+                  className={`flex items-center border-b border-border last:border-b-0 ${ri % 2 === 0 ? "bg-white" : "bg-slate-50/60"}`}
                 >
-                  <Icon name="Plus" size={15} />
-                  Добавить неделю
-                </button>
-              </div>
+                  {/* Липкое имя */}
+                  <div
+                    className="flex-shrink-0 px-4 py-2 border-r border-border"
+                    style={{
+                      width: NAME_W,
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 5,
+                      backgroundColor: ri % 2 === 0 ? "#ffffff" : "#f8fafc",
+                    }}
+                  >
+                    <p className="text-sm font-semibold text-foreground leading-tight truncate">{c.name}</p>
+                    <p className="text-[11px] text-muted-foreground">@{c.parentLogin}</p>
+                  </div>
+
+                  {/* Ячейки с баллами */}
+                  {c.entries.map((e, wi) => (
+                    <div
+                      key={wi}
+                      className="flex-shrink-0 flex items-center justify-center border-r border-border last:border-r-0 py-1.5 px-1"
+                      style={{ width: CELL_W }}
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        value={e.score ?? ""}
+                        onChange={(ev) => updateScore(c.id, wi, ev.target.value)}
+                        placeholder="—"
+                        className="w-full text-center text-sm font-semibold text-foreground bg-transparent outline-none rounded-lg px-1 py-1 hover:bg-blue-50 focus:bg-blue-50 focus:ring-1 focus:ring-blue-300 transition-all"
+                        style={{ maxWidth: "60px" }}
+                      />
+                    </div>
+                  ))}
+
+                  {/* Система */}
+                  <div className="flex-shrink-0 flex items-center justify-center gap-0.5 px-2" style={{ width: 100 }}>
+                    {([1, 2, 3] as System[]).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => updateSystem(c.id, s)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                          c.system === s
+                            ? "bg-blue-500 text-white"
+                            : "bg-muted text-muted-foreground hover:bg-blue-100 hover:text-blue-600"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
             </div>
-          ) : (
-            <div className="bg-white rounded-2xl soft-shadow p-10 text-center text-muted-foreground">
-              Выберите ребёнка слева
-            </div>
-          )}
+          </div>
+
+          {/* Добавить неделю */}
+          <div className="flex items-center gap-2 px-4 py-3 border-t border-border bg-muted/20">
+            <input
+              placeholder="Название новой недели (напр. «25 ноя»)"
+              value={newWeek}
+              onChange={(e) => setNewWeek(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addWeek()}
+              className="flex-1 max-w-xs px-3 py-2 rounded-xl border border-border text-sm outline-none focus:border-blue-300 bg-white transition-colors"
+            />
+            <button
+              onClick={addWeek}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-xl hover:bg-blue-600 transition-colors"
+            >
+              <Icon name="Plus" size={15} />
+              Добавить неделю
+            </button>
+          </div>
         </div>
       </div>
     </div>
