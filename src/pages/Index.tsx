@@ -118,6 +118,7 @@ const INITIAL_CHILDREN: Child[] = [
 ];
 
 const STORAGE_KEY = "school_children_data";
+const ATTENDANCE_KEY = "school_attendance_data";
 
 function loadData(): Child[] {
   try {
@@ -131,6 +132,37 @@ function loadData(): Child[] {
 
 function saveData(data: Child[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// attendance[weekIndex] = { maxLessons: number, children: { [childId]: number | null } }
+interface WeekAttendance {
+  maxLessons: number | null;
+  children: Record<string, number | null>;
+}
+
+function loadAttendance(): WeekAttendance[] {
+  try {
+    const raw = localStorage.getItem(ATTENDANCE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    void e;
+  }
+  return [];
+}
+
+function saveAttendance(data: WeekAttendance[]) {
+  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(data));
+}
+
+function buildAttendance(weeks: string[], children: Child[], stored: WeekAttendance[]): WeekAttendance[] {
+  return weeks.map((_, wi) => {
+    const existing = stored[wi] ?? { maxLessons: null, children: {} };
+    const childMap: Record<string, number | null> = {};
+    children.forEach((c) => {
+      childMap[c.id] = existing.children?.[c.id] ?? null;
+    });
+    return { maxLessons: existing.maxLessons ?? null, children: childMap };
+  });
 }
 
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
@@ -222,6 +254,28 @@ function AdminView({ onBack }: { onBack: () => void }) {
   // все недели берём из первого ребёнка (они синхронны)
   const weeks = children[0]?.entries.map((e) => e.week) ?? [];
 
+  // ── Посещаемость ──
+  const [attendance, setAttendance] = useState<WeekAttendance[]>(() =>
+    buildAttendance(weeks, children, loadAttendance())
+  );
+
+  const syncAttendanceSize = (newWeeks: string[], newChildren: Child[], prevAtt: WeekAttendance[]) =>
+    buildAttendance(newWeeks, newChildren, prevAtt);
+
+  const updateMaxLessons = (wi: number, val: string) => {
+    const num = val === "" ? null : Number(val);
+    setAttendance((prev) => prev.map((w, i) => (i === wi ? { ...w, maxLessons: num } : w)));
+  };
+
+  const updateAttendance = (wi: number, childId: string, val: string) => {
+    const num = val === "" ? null : Number(val);
+    setAttendance((prev) =>
+      prev.map((w, i) =>
+        i === wi ? { ...w, children: { ...w.children, [childId]: num } } : w
+      )
+    );
+  };
+
   const updateScore = (childId: string, weekIdx: number, val: string) => {
     const num = val === "" ? null : Number(val);
     setChildren((prev) =>
@@ -241,9 +295,10 @@ function AdminView({ onBack }: { onBack: () => void }) {
 
   const addWeek = () => {
     if (!newWeek.trim()) return;
-    setChildren((prev) =>
-      prev.map((c) => ({ ...c, entries: [...c.entries, { week: newWeek.trim(), score: null }] }))
-    );
+    const newChildren = children.map((c) => ({ ...c, entries: [...c.entries, { week: newWeek.trim(), score: null }] }));
+    const newWeeks = [...weeks, newWeek.trim()];
+    setChildren(newChildren);
+    setAttendance((prev) => syncAttendanceSize(newWeeks, newChildren, prev));
     setNewWeek("");
   };
 
@@ -256,7 +311,9 @@ function AdminView({ onBack }: { onBack: () => void }) {
       system: 1,
       entries: weeks.map((w) => ({ week: w, score: null })),
     };
-    setChildren((prev) => [...prev, newC]);
+    const newChildren = [...children, newC];
+    setChildren(newChildren);
+    setAttendance((prev) => syncAttendanceSize(weeks, newChildren, prev));
     setNewChildName("");
     setNewChildLogin("");
     setAddingChild(false);
@@ -264,6 +321,7 @@ function AdminView({ onBack }: { onBack: () => void }) {
 
   const handleSave = () => {
     saveData(children);
+    saveAttendance(attendance);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -443,6 +501,118 @@ function AdminView({ onBack }: { onBack: () => void }) {
               <Icon name="Plus" size={15} />
               Добавить неделю
             </button>
+          </div>
+        </div>
+
+        {/* ── Таблица №2 — Посещаемость ── */}
+        <div className="mt-6 bg-white rounded-2xl soft-shadow overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-emerald-50/60 flex items-center gap-2">
+            <span className="text-base">📋</span>
+            <p className="font-bold text-foreground text-sm">Таблица №2 — Посещаемость</p>
+            <span className="text-xs text-muted-foreground ml-1">кол-во занятий в неделю</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: `${NAME_W + weeks.length * CELL_W}px` }}>
+
+              {/* Шапка */}
+              <div className="flex border-b border-border bg-muted/40">
+                <div
+                  className="flex-shrink-0 px-4 py-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide border-r border-border"
+                  style={{ width: NAME_W, position: "sticky", left: 0, zIndex: 11, backgroundColor: "#f8fafc" }}
+                >
+                  Ученик
+                </div>
+                {weeks.map((w, i) => (
+                  <div
+                    key={i}
+                    className="flex-shrink-0 text-center px-1 py-3 text-xs font-semibold text-muted-foreground border-r border-border last:border-r-0"
+                    style={{ width: CELL_W }}
+                  >
+                    {w}
+                  </div>
+                ))}
+              </div>
+
+              {/* Строка максимума */}
+              <div className="flex items-center border-b-2 border-emerald-200 bg-emerald-50">
+                <div
+                  className="flex-shrink-0 px-4 py-2 border-r border-emerald-200 font-semibold text-xs text-emerald-700"
+                  style={{ width: NAME_W, position: "sticky", left: 0, zIndex: 5, backgroundColor: "#f0fdf4" }}
+                >
+                  норма посещаемости<br />
+                  <span className="font-normal text-emerald-600">100%</span>
+                </div>
+                {weeks.map((_, wi) => (
+                  <div
+                    key={wi}
+                    className="flex-shrink-0 flex items-center justify-center border-r border-emerald-100 last:border-r-0 py-1.5 px-1"
+                    style={{ width: CELL_W }}
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      value={attendance[wi]?.maxLessons ?? ""}
+                      onChange={(ev) => updateMaxLessons(wi, ev.target.value)}
+                      placeholder="—"
+                      className="w-full text-center text-sm font-bold text-emerald-700 bg-transparent outline-none rounded-lg px-1 py-1 hover:bg-emerald-100 focus:bg-emerald-100 focus:ring-1 focus:ring-emerald-400 transition-all"
+                      style={{ maxWidth: "60px" }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Строки детей */}
+              {children.map((c, ri) => (
+                <div
+                  key={c.id}
+                  className={`flex items-center border-b border-border last:border-b-0 ${ri % 2 === 0 ? "bg-white" : "bg-slate-50/60"}`}
+                >
+                  <div
+                    className="flex-shrink-0 px-4 py-2 border-r border-border"
+                    style={{
+                      width: NAME_W,
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 5,
+                      backgroundColor: ri % 2 === 0 ? "#ffffff" : "#f8fafc",
+                    }}
+                  >
+                    <p className="text-sm font-semibold text-foreground leading-tight truncate">{c.name}</p>
+                    <p className="text-[11px] text-muted-foreground">@{c.parentLogin}</p>
+                  </div>
+
+                  {weeks.map((_, wi) => {
+                    const val = attendance[wi]?.children?.[c.id] ?? null;
+                    const maxL = attendance[wi]?.maxLessons ?? null;
+                    const pct = (val !== null && maxL !== null && maxL > 0) ? val / maxL : null;
+                    const cellBg =
+                      pct === null ? ""
+                      : pct >= 1 ? "bg-emerald-50 text-emerald-700"
+                      : pct >= 0.8 ? "bg-yellow-50 text-yellow-700"
+                      : "bg-red-50 text-red-600";
+                    return (
+                      <div
+                        key={wi}
+                        className={`flex-shrink-0 flex items-center justify-center border-r border-border last:border-r-0 py-1.5 px-1 ${cellBg}`}
+                        style={{ width: CELL_W }}
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          value={val ?? ""}
+                          onChange={(ev) => updateAttendance(wi, c.id, ev.target.value)}
+                          placeholder="—"
+                          className={`w-full text-center text-sm font-semibold bg-transparent outline-none rounded-lg px-1 py-1 hover:bg-black/5 focus:bg-black/5 focus:ring-1 focus:ring-blue-300 transition-all ${pct !== null ? "" : "text-foreground"}`}
+                          style={{ maxWidth: "60px" }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
+            </div>
           </div>
         </div>
       </div>
