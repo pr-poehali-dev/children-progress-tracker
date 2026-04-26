@@ -1,19 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Icon from "@/components/ui/icon";
 
 type IconName = string;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface WeekEntry {
-  week: string; // "08.09", "15.09" etc.
+  week: string;
   score: number | null;
 }
+
+type System = 1 | 2 | 3;
 
 interface Child {
   id: string;
   name: string;
-  parentLogin: string; // simple login for parent view
+  parentLogin: string;
+  system: System;
   entries: WeekEntry[];
+}
+
+function getBarColor(score: number, system: System, prevScore: number | null): string {
+  if (system === 1) {
+    if (score <= 109) return "#ef4444"; // red
+    if (score <= 134) return "#eab308"; // yellow
+    return "#22c55e"; // green
+  }
+  if (system === 2) {
+    if (score <= 19) return "#ef4444";
+    if (score <= 29) return "#eab308";
+    return "#22c55e";
+  }
+  // system 3 — base sky blue, compare with prev
+  if (prevScore === null) return "#38bdf8"; // sky
+  if (score > prevScore) return "#22c55e"; // growth = green
+  if (score < prevScore) return "#ef4444"; // drop = red
+  return "#38bdf8"; // same = sky
 }
 
 // ─── Initial demo data ────────────────────────────────────────────────────────
@@ -22,6 +43,7 @@ const INITIAL_CHILDREN: Child[] = [
     id: "1",
     name: "Король Улына",
     parentLogin: "korol",
+    system: 1,
     entries: [
       { week: "08 сент", score: 203 },
       { week: "15 сент", score: 228 },
@@ -40,6 +62,7 @@ const INITIAL_CHILDREN: Child[] = [
     id: "2",
     name: "Омарова Сара",
     parentLogin: "omarova",
+    system: 1,
     entries: [
       { week: "08 сент", score: 190 },
       { week: "15 сент", score: 228 },
@@ -58,6 +81,7 @@ const INITIAL_CHILDREN: Child[] = [
     id: "3",
     name: "Потапова Элина",
     parentLogin: "potapova",
+    system: 1,
     entries: [
       { week: "08 сент", score: 150 },
       { week: "15 сент", score: 168 },
@@ -76,6 +100,7 @@ const INITIAL_CHILDREN: Child[] = [
     id: "4",
     name: "Романов Матфей",
     parentLogin: "romanov",
+    system: 1,
     entries: [
       { week: "08 сент", score: 84 },
       { week: "15 сент", score: 89 },
@@ -109,23 +134,34 @@ function saveData(data: Child[]) {
 }
 
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
-function BarChart({ entries, name }: { entries: WeekEntry[]; name: string }) {
-  const valid = entries.filter((e) => e.score !== null && e.score! >= 0);
-  if (valid.length === 0) return <p className="text-muted-foreground text-sm">Нет данных</p>;
+const CHART_H = 160; // px — фиксированная высота области столбцов
+
+function BarChart({ entries, system }: { entries: WeekEntry[]; system: System }) {
+  const valid = entries.filter((e) => e.score !== null && e.score >= 0);
+  if (valid.length === 0) return <p className="text-muted-foreground text-sm py-4">Нет данных</p>;
 
   const max = Math.max(...valid.map((e) => e.score as number), 1);
   const total = valid.reduce((s, e) => s + (e.score as number), 0);
   const avg = Math.round(total / valid.length);
+  const best = Math.max(...valid.map((e) => e.score as number));
+
+  // legend labels
+  const legendItems =
+    system === 1
+      ? [{ color: "#22c55e", label: "≥135" }, { color: "#eab308", label: "110–134" }, { color: "#ef4444", label: "0–109" }]
+      : system === 2
+      ? [{ color: "#22c55e", label: "≥30" }, { color: "#eab308", label: "20–29" }, { color: "#ef4444", label: "0–19" }]
+      : [{ color: "#22c55e", label: "Рост" }, { color: "#38bdf8", label: "Без изм." }, { color: "#ef4444", label: "Снижение" }];
 
   return (
     <div>
       {/* Summary */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-3 mb-6">
         {[
-          { label: "Всего недель", value: valid.length },
-          { label: "Сумма баллов", value: total },
-          { label: "Среднее/нед.", value: avg },
-          { label: "Лучшая неделя", value: Math.max(...valid.map((e) => e.score as number)) },
+          { label: "Недель", value: valid.length },
+          { label: "Сумма", value: total },
+          { label: "Среднее", value: avg },
+          { label: "Лучший", value: best },
         ].map((s, i) => (
           <div key={i} className="flex-1 bg-muted/40 rounded-2xl p-3 text-center min-w-0">
             <p className="text-xl font-bold text-foreground">{s.value}</p>
@@ -134,38 +170,61 @@ function BarChart({ entries, name }: { entries: WeekEntry[]; name: string }) {
         ))}
       </div>
 
-      {/* Chart */}
-      <div className="flex items-end gap-1.5 h-44 px-1">
-        {entries.map((e, i) => {
-          const h = e.score !== null && e.score >= 0 ? (e.score / max) * 100 : 0;
-          const isEmpty = e.score === null;
-          return (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-              <span className="text-[10px] font-bold text-foreground opacity-80 tabular-nums">
-                {e.score !== null ? e.score : "—"}
-              </span>
-              <div className="w-full relative flex-1 flex items-end">
-                <div
-                  className={`w-full rounded-t-lg transition-all duration-500 ${
-                    isEmpty
-                      ? "bg-muted"
-                      : e.score === 0
-                      ? "bg-red-200"
-                      : h > 70
-                      ? "bg-gradient-to-t from-blue-500 to-blue-400"
-                      : h > 40
-                      ? "bg-gradient-to-t from-blue-400 to-blue-300"
-                      : "bg-gradient-to-t from-blue-300 to-blue-200"
-                  }`}
-                  style={{ height: isEmpty ? "6px" : `${Math.max(h, 4)}%` }}
-                />
+      {/* Legend */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        {legendItems.map((l, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: l.color }} />
+            <span className="text-xs text-muted-foreground">{l.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart — фиксированная высота через style, столбцы в абсолютном px */}
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: `${entries.length * 38}px` }}>
+          <div className="flex items-end gap-1" style={{ height: `${CHART_H}px` }}>
+            {entries.map((e, i) => {
+              const isEmpty = e.score === null;
+              const score = e.score ?? 0;
+              const barH = isEmpty ? 4 : Math.max(Math.round((score / max) * CHART_H), 4);
+
+              // find prev non-null score for system 3
+              let prevScore: number | null = null;
+              if (system === 3 && i > 0) {
+                for (let j = i - 1; j >= 0; j--) {
+                  if (entries[j].score !== null) { prevScore = entries[j].score; break; }
+                }
+              }
+
+              const color = isEmpty ? "#e2e8f0" : getBarColor(score, system, prevScore);
+
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center min-w-0" style={{ height: `${CHART_H}px`, justifyContent: "flex-end" }}>
+                  {/* value label */}
+                  <span className="text-[10px] font-bold tabular-nums mb-0.5" style={{ color: isEmpty ? "#94a3b8" : "#1e293b" }}>
+                    {isEmpty ? "—" : score}
+                  </span>
+                  {/* bar */}
+                  <div
+                    className="w-full rounded-t-md transition-all duration-500"
+                    style={{ height: `${barH}px`, backgroundColor: color, minHeight: "4px" }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {/* Week labels */}
+          <div className="flex gap-1 mt-1">
+            {entries.map((e, i) => (
+              <div key={i} className="flex-1 min-w-0 text-center">
+                <span className="text-[9px] text-muted-foreground leading-tight" style={{ wordBreak: "break-word" }}>
+                  {e.week}
+                </span>
               </div>
-              <span className="text-[9px] text-muted-foreground text-center leading-tight w-full truncate px-0.5">
-                {e.week.replace(" ", "\n")}
-              </span>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -210,12 +269,19 @@ function AdminView({ onBack }: { onBack: () => void }) {
     setNewWeek("");
   };
 
+  const updateSystem = (sys: System) => {
+    setChildren((prev) =>
+      prev.map((c) => (c.id !== selected ? c : { ...c, system: sys }))
+    );
+  };
+
   const addChild = () => {
     if (!newChildName.trim() || !newChildLogin.trim()) return;
     const newC: Child = {
       id: Date.now().toString(),
       name: newChildName.trim(),
       parentLogin: newChildLogin.trim().toLowerCase(),
+      system: 1,
       entries: children[0]?.entries.map((e) => ({ week: e.week, score: null })) ?? [],
     };
     setChildren((prev) => [...prev, newC]);
@@ -315,7 +381,25 @@ function AdminView({ onBack }: { onBack: () => void }) {
           {child ? (
             <div className="bg-white rounded-2xl soft-shadow p-5">
               <h2 className="font-bold text-lg text-foreground mb-1">{child.name}</h2>
-              <p className="text-xs text-muted-foreground mb-5">Логин родителя: <span className="font-mono font-semibold text-foreground">@{child.parentLogin}</span></p>
+              <div className="flex flex-wrap items-center gap-3 mb-5">
+                <p className="text-xs text-muted-foreground">Логин родителя: <span className="font-mono font-semibold text-foreground">@{child.parentLogin}</span></p>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground mr-1">Система:</span>
+                  {([1, 2, 3] as System[]).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => updateSystem(s)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                        child.system === s
+                          ? "bg-blue-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="space-y-2 mb-6">
                 {child.entries.map((e, i) => (
@@ -457,7 +541,7 @@ function ParentView({ onBack }: { onBack: () => void }) {
             <Icon name="BarChart3" size={18} className="text-violet-500" />
             Баллы по неделям
           </h3>
-          <BarChart entries={child.entries} name={child.name} />
+          <BarChart entries={child.entries} system={child.system} />
         </div>
 
         {/* Week detail list */}
