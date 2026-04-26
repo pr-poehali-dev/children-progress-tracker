@@ -168,19 +168,30 @@ function buildAttendance(weeks: string[], children: Child[], stored: WeekAttenda
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
 const CHART_H = 160; // px — фиксированная высота области столбцов
 
-function BarChart({ entries, system }: { entries: WeekEntry[]; system: System }) {
+function BarChart({
+  entries,
+  system,
+  childId,
+  attendance,
+}: {
+  entries: WeekEntry[];
+  system: System;
+  childId?: string;
+  attendance?: WeekAttendance[];
+}) {
   const valid = entries.filter((e) => e.score !== null && e.score >= 0);
   if (valid.length === 0) return <p className="text-muted-foreground text-sm py-4">Нет данных</p>;
 
   const max = Math.max(...valid.map((e) => e.score as number), 1);
 
-  // legend labels
   const legendItems =
     system === 1
       ? [{ color: "#22c55e", label: "≥135" }, { color: "#eab308", label: "110–134" }, { color: "#ef4444", label: "0–109" }]
       : system === 2
       ? [{ color: "#22c55e", label: "≥30" }, { color: "#eab308", label: "20–29" }, { color: "#ef4444", label: "0–19" }]
       : [{ color: "#22c55e", label: "Рост" }, { color: "#38bdf8", label: "Без изм." }, { color: "#ef4444", label: "Снижение" }];
+
+  const COL_W = 36;
 
   return (
     <div>
@@ -196,7 +207,20 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
 
       {/* Chart */}
       <div className="overflow-x-auto">
-        <div style={{ minWidth: `${entries.length * 28}px` }}>
+        <div style={{ minWidth: `${entries.length * COL_W}px` }}>
+
+          {/* Scores above bars */}
+          <div className="flex gap-0.5 mb-0.5">
+            {entries.map((e, i) => (
+              <div key={i} style={{ width: `${COL_W}px`, flexShrink: 0 }} className="text-center">
+                <span className="text-[9px] font-semibold text-foreground leading-tight">
+                  {e.score !== null ? e.score : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Bars */}
           <div className="flex items-end gap-0.5" style={{ height: `${CHART_H}px` }}>
             {entries.map((e, i) => {
               const isEmpty = e.score === null;
@@ -216,20 +240,49 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
                 <div
                   key={i}
                   className="flex flex-col items-center"
-                  style={{ width: "24px", flexShrink: 0, height: `${CHART_H}px`, justifyContent: "flex-end" }}
+                  style={{ width: `${COL_W}px`, flexShrink: 0, height: `${CHART_H}px`, justifyContent: "flex-end" }}
                 >
                   <div
                     className="rounded-t-sm transition-all duration-500"
-                    style={{ width: "18px", height: `${barH}px`, backgroundColor: color, minHeight: "4px" }}
+                    style={{ width: "22px", height: `${barH}px`, backgroundColor: color, minHeight: "4px" }}
                   />
                 </div>
               );
             })}
           </div>
+
+          {/* Attendance % below bars */}
+          <div className="flex gap-0.5 mt-0.5">
+            {entries.map((_, i) => {
+              let pctLabel = "";
+              if (childId && attendance && attendance[i]) {
+                const w = attendance[i];
+                const childVal = w.children?.[childId] ?? null;
+                const maxL = w.maxLessons ?? null;
+                if (childVal !== null && maxL !== null && maxL > 0) {
+                  pctLabel = `${Math.round((childVal / maxL) * 100)}%`;
+                }
+              }
+              const isLow = pctLabel !== "" && parseInt(pctLabel) < 80;
+              const isMid = pctLabel !== "" && parseInt(pctLabel) >= 80 && parseInt(pctLabel) < 100;
+              return (
+                <div key={i} style={{ width: `${COL_W}px`, flexShrink: 0 }} className="text-center">
+                  <span
+                    className={`text-[9px] font-semibold leading-tight ${
+                      isLow ? "text-red-500" : isMid ? "text-yellow-600" : pctLabel ? "text-emerald-600" : "text-muted-foreground"
+                    }`}
+                  >
+                    {pctLabel || ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
           {/* Week labels */}
-          <div className="flex gap-0.5 mt-1">
+          <div className="flex gap-0.5 mt-0.5">
             {entries.map((e, i) => (
-              <div key={i} style={{ width: "24px", flexShrink: 0 }} className="text-center">
+              <div key={i} style={{ width: `${COL_W}px`, flexShrink: 0 }} className="text-center">
                 <span className="text-[8px] text-muted-foreground leading-tight" style={{ display: "block", wordBreak: "break-word" }}>
                   {e.week}
                 </span>
@@ -625,6 +678,7 @@ function ParentView({ onBack }: { onBack: () => void }) {
   const [login, setLogin] = useState("");
   const [child, setChild] = useState<Child | null>(null);
   const [error, setError] = useState("");
+  const [attendanceData] = useState<WeekAttendance[]>(loadAttendance);
 
   const handleLogin = () => {
     const data = loadData();
@@ -696,7 +750,7 @@ function ParentView({ onBack }: { onBack: () => void }) {
             <Icon name="BarChart3" size={18} className="text-violet-500" />
             Баллы по неделям
           </h3>
-          <BarChart entries={child.entries} system={child.system} />
+          <BarChart entries={child.entries} system={child.system} childId={child.id} attendance={attendanceData} />
         </div>
 
         {/* Week detail list */}
