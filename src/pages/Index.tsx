@@ -141,9 +141,6 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
   if (valid.length === 0) return <p className="text-muted-foreground text-sm py-4">Нет данных</p>;
 
   const max = Math.max(...valid.map((e) => e.score as number), 1);
-  const total = valid.reduce((s, e) => s + (e.score as number), 0);
-  const avg = Math.round(total / valid.length);
-  const best = Math.max(...valid.map((e) => e.score as number));
 
   // legend labels
   const legendItems =
@@ -155,21 +152,6 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
 
   return (
     <div>
-      {/* Summary */}
-      <div className="flex gap-3 mb-6">
-        {[
-          { label: "Недель", value: valid.length },
-          { label: "Сумма", value: total },
-          { label: "Среднее", value: avg },
-          { label: "Лучший", value: best },
-        ].map((s, i) => (
-          <div key={i} className="flex-1 bg-muted/40 rounded-2xl p-3 text-center min-w-0">
-            <p className="text-xl font-bold text-foreground">{s.value}</p>
-            <p className="text-xs text-muted-foreground leading-tight">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Legend */}
       <div className="flex gap-3 mb-4 flex-wrap">
         {legendItems.map((l, i) => (
@@ -180,16 +162,15 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
         ))}
       </div>
 
-      {/* Chart — фиксированная высота через style, столбцы в абсолютном px */}
+      {/* Chart */}
       <div className="overflow-x-auto">
-        <div style={{ minWidth: `${entries.length * 38}px` }}>
-          <div className="flex items-end gap-1" style={{ height: `${CHART_H}px` }}>
+        <div style={{ minWidth: `${entries.length * 28}px` }}>
+          <div className="flex items-end gap-0.5" style={{ height: `${CHART_H}px` }}>
             {entries.map((e, i) => {
               const isEmpty = e.score === null;
               const score = e.score ?? 0;
               const barH = isEmpty ? 4 : Math.max(Math.round((score / max) * CHART_H), 4);
 
-              // find prev non-null score for system 3
               let prevScore: number | null = null;
               if (system === 3 && i > 0) {
                 for (let j = i - 1; j >= 0; j--) {
@@ -200,25 +181,24 @@ function BarChart({ entries, system }: { entries: WeekEntry[]; system: System })
               const color = isEmpty ? "#e2e8f0" : getBarColor(score, system, prevScore);
 
               return (
-                <div key={i} className="flex-1 flex flex-col items-center min-w-0" style={{ height: `${CHART_H}px`, justifyContent: "flex-end" }}>
-                  {/* value label */}
-                  <span className="text-[10px] font-bold tabular-nums mb-0.5" style={{ color: isEmpty ? "#94a3b8" : "#1e293b" }}>
-                    {isEmpty ? "—" : score}
-                  </span>
-                  {/* bar */}
+                <div
+                  key={i}
+                  className="flex flex-col items-center"
+                  style={{ width: "24px", flexShrink: 0, height: `${CHART_H}px`, justifyContent: "flex-end" }}
+                >
                   <div
-                    className="w-full rounded-t-md transition-all duration-500"
-                    style={{ height: `${barH}px`, backgroundColor: color, minHeight: "4px" }}
+                    className="rounded-t-sm transition-all duration-500"
+                    style={{ width: "18px", height: `${barH}px`, backgroundColor: color, minHeight: "4px" }}
                   />
                 </div>
               );
             })}
           </div>
           {/* Week labels */}
-          <div className="flex gap-1 mt-1">
+          <div className="flex gap-0.5 mt-1">
             {entries.map((e, i) => (
-              <div key={i} className="flex-1 min-w-0 text-center">
-                <span className="text-[9px] text-muted-foreground leading-tight" style={{ wordBreak: "break-word" }}>
+              <div key={i} style={{ width: "24px", flexShrink: 0 }} className="text-center">
+                <span className="text-[8px] text-muted-foreground leading-tight" style={{ display: "block", wordBreak: "break-word" }}>
                   {e.week}
                 </span>
               </div>
@@ -511,26 +491,17 @@ function ParentView({ onBack }: { onBack: () => void }) {
     );
   }
 
-  const filled = child.entries.filter((e) => e.score !== null && e.score >= 0);
-  const total = filled.reduce((s, e) => s + (e.score as number), 0);
-
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-white soft-shadow sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setChild(null)} className="p-2 rounded-xl hover:bg-muted transition-colors">
-              <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
-            </button>
-            <span className="text-lg">👨‍👩‍👧</span>
-            <div>
-              <p className="font-bold text-foreground leading-tight">{child.name}</p>
-              <p className="text-xs text-muted-foreground">Успеваемость по неделям</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-bold text-violet-600">{total}</p>
-            <p className="text-xs text-muted-foreground">всего баллов</p>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+          <button onClick={() => setChild(null)} className="p-2 rounded-xl hover:bg-muted transition-colors">
+            <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
+          </button>
+          <span className="text-lg">👨‍👩‍👧</span>
+          <div>
+            <p className="font-bold text-foreground leading-tight">{child.name}</p>
+            <p className="text-xs text-muted-foreground">Успеваемость по неделям</p>
           </div>
         </div>
       </header>
