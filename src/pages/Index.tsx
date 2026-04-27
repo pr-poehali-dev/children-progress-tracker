@@ -449,6 +449,37 @@ function AdminView({ onBack }: { onBack: () => void }) {
       reader.readAsArrayBuffer(file);
     });
 
+  const handleExportTable1 = () => {
+    const weeks = children[0]?.entries.map((e) => e.week) ?? [];
+    const header = ["Ученик", "Логин", ...weeks];
+    const dataRows = children.map((c) => [
+      c.name,
+      c.parentLogin,
+      ...weeks.map((w) => {
+        const en = c.entries.find((e) => e.week === w);
+        return en?.score ?? "";
+      }),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Баллы");
+    XLSX.writeFile(wb, "таблица1_баллы.xlsx");
+  };
+
+  const handleExportTable2 = () => {
+    const weeks = children[0]?.entries.map((e) => e.week) ?? [];
+    const header = ["Ученик", ...weeks];
+    const normaRow = ["Норма", ...weeks.map((_, wi) => attendance[wi]?.maxLessons ?? "")];
+    const dataRows = children.map((c) => [
+      c.name,
+      ...weeks.map((_, wi) => attendance[wi]?.children?.[c.id] ?? ""),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([header, normaRow, ...dataRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Посещаемость");
+    XLSX.writeFile(wb, "таблица2_посещаемость.xlsx");
+  };
+
   const handleImportTable1 = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -605,10 +636,24 @@ function AdminView({ onBack }: { onBack: () => void }) {
               Табл. №1
             </button>
             <button
+              onClick={handleExportTable1}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
+            >
+              <Icon name="Download" size={15} />
+              Табл. №1
+            </button>
+            <button
               onClick={() => fileRef2.current?.click()}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
             >
               <Icon name="Upload" size={15} />
+              Табл. №2
+            </button>
+            <button
+              onClick={handleExportTable2}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+            >
+              <Icon name="Download" size={15} />
               Табл. №2
             </button>
             <input ref={fileRef1} type="file" accept=".xlsx" className="hidden" onChange={handleImportTable1} />
