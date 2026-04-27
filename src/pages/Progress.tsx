@@ -169,7 +169,7 @@ export default function ProgressView({ onBack }: Props) {
   const COL_NAME = 130;
   const COL_SUBJ = 150;
   const COL_CELL = 44;
-  const HEADER_TOP = 57;
+  const HEADER_TOP = 0;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -236,7 +236,7 @@ export default function ProgressView({ onBack }: Props) {
         )}
 
         {data && (
-          <div className="rounded-3xl overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
+          <div className="rounded-[2rem] overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
             <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 110px)" }}>
               <table style={{
                 borderCollapse: "separate",
@@ -301,7 +301,7 @@ export default function ProgressView({ onBack }: Props) {
                       const done  = row.tasks.filter((t, ti) => t !== null && checked.has(`${ci}_${ri}_${ti}`)).length;
                       const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
                       const isLastRow = ri === child.rows.length - 1;
-                      const groupBorder = isLastRow && !isLast ? "2px solid #cbd5e1" : "1px solid #e8edf2";
+                      const groupBorder = isLastRow && !isLast ? "5px solid #94a3b8" : "1px solid #e8edf2";
 
                       // Для каждой ячейки определяем: большая или маленькая
                       // Большая = уникальное значение в строке ИЛИ последнее вхождение повторяющегося
@@ -410,7 +410,7 @@ export default function ProgressView({ onBack }: Props) {
                                   transition: "background 0.18s",
                                   height: 38,
                                   padding: 0,
-                                  boxShadow: isChecked ? `inset 0 -2px 4px rgba(0,0,0,0.12)` : "none",
+                                  boxShadow: isChecked ? `inset 0 4px 10px rgba(0,0,0,0.22), inset 0 1px 3px rgba(0,0,0,0.18)` : "none",
                                 }}
                               >
                                 {task ?? ""}
