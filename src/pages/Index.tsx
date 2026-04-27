@@ -7,6 +7,7 @@ type IconName = string;
 interface WeekEntry {
   week: string;
   score: number | null;
+  best?: boolean;
 }
 
 type System = 1 | 2 | 3;
@@ -209,13 +210,31 @@ function BarChart({
       <div className="overflow-x-auto">
         <div style={{ minWidth: `${entries.length * COL_W}px` }}>
 
-          {/* Scores above bars */}
+          {/* Best badge + Scores above bars */}
           <div className="flex gap-0.5 mb-0.5">
             {entries.map((e, i) => (
-              <div key={i} style={{ width: `${COL_W}px`, flexShrink: 0 }} className="text-center">
-                <span className="text-[9px] font-semibold text-foreground leading-tight">
-                  {e.score !== null ? e.score : ""}
-                </span>
+              <div key={i} style={{ width: `${COL_W}px`, flexShrink: 0 }} className="flex flex-col items-center gap-0.5">
+                {e.best ? (
+                  <span
+                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md text-[8px] font-bold leading-tight whitespace-nowrap"
+                    style={{
+                      background: "linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #d97706 100%)",
+                      color: "#fff",
+                      boxShadow: "0 1px 4px rgba(245,158,11,0.5)",
+                    }}
+                  >
+                    ★ Лучший
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-semibold text-foreground leading-tight">
+                    {e.score !== null ? e.score : ""}
+                  </span>
+                )}
+                {e.best && (
+                  <span className="text-[9px] font-bold text-amber-600 leading-tight">
+                    {e.score !== null ? e.score : ""}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -234,7 +253,11 @@ function BarChart({
                 }
               }
 
-              const color = isEmpty ? "#e2e8f0" : getBarColor(score, system, prevScore);
+              const color = isEmpty
+                ? "#e2e8f0"
+                : e.best
+                ? "#f59e0b"
+                : getBarColor(score, system, prevScore);
 
               return (
                 <div
@@ -244,7 +267,13 @@ function BarChart({
                 >
                   <div
                     className="rounded-t-sm transition-all duration-500"
-                    style={{ width: "22px", height: `${barH}px`, backgroundColor: color, minHeight: "4px" }}
+                    style={{
+                      width: "22px",
+                      height: `${barH}px`,
+                      backgroundColor: color,
+                      minHeight: "4px",
+                      boxShadow: e.best ? "0 0 8px rgba(245,158,11,0.6)" : undefined,
+                    }}
                   />
                 </div>
               );
@@ -336,6 +365,16 @@ function AdminView({ onBack }: { onBack: () => void }) {
         c.id !== childId
           ? c
           : { ...c, entries: c.entries.map((e, i) => (i === weekIdx ? { ...e, score: num } : e)) }
+      )
+    );
+  };
+
+  const toggleBest = (childId: string, weekIdx: number) => {
+    setChildren((prev) =>
+      prev.map((c) =>
+        c.id !== childId
+          ? c
+          : { ...c, entries: c.entries.map((e, i) => (i === weekIdx ? { ...e, best: !e.best } : e)) }
       )
     );
   };
@@ -501,7 +540,7 @@ function AdminView({ onBack }: { onBack: () => void }) {
                   {c.entries.map((e, wi) => (
                     <div
                       key={wi}
-                      className="flex-shrink-0 flex items-center justify-center border-r border-border last:border-r-0 py-1.5 px-1"
+                      className={`flex-shrink-0 flex flex-col items-center justify-center border-r border-border last:border-r-0 py-1 px-0.5 relative transition-colors ${e.best ? "bg-amber-50" : ""}`}
                       style={{ width: CELL_W }}
                     >
                       <input
@@ -510,9 +549,16 @@ function AdminView({ onBack }: { onBack: () => void }) {
                         value={e.score ?? ""}
                         onChange={(ev) => updateScore(c.id, wi, ev.target.value)}
                         placeholder="—"
-                        className="w-full text-center text-sm font-semibold text-foreground bg-transparent outline-none rounded-lg px-1 py-1 hover:bg-blue-50 focus:bg-blue-50 focus:ring-1 focus:ring-blue-300 transition-all"
+                        className={`w-full text-center text-sm font-semibold bg-transparent outline-none rounded-lg px-1 py-0.5 transition-all ${e.best ? "text-amber-700 hover:bg-amber-100 focus:bg-amber-100 focus:ring-1 focus:ring-amber-400" : "text-foreground hover:bg-blue-50 focus:bg-blue-50 focus:ring-1 focus:ring-blue-300"}`}
                         style={{ maxWidth: "60px" }}
                       />
+                      <button
+                        onClick={() => toggleBest(c.id, wi)}
+                        title={e.best ? "Снять отметку лучшего" : "Отметить как лучший балл"}
+                        className={`text-[10px] leading-none transition-all ${e.best ? "text-amber-500 scale-110" : "text-muted-foreground/30 hover:text-amber-400"}`}
+                      >
+                        ★
+                      </button>
                     </div>
                   ))}
 
