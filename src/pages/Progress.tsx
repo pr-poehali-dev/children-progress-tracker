@@ -88,9 +88,9 @@ function parseProgress(ws: XLSX.WorkSheet): ProgressData {
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
-const CHILD_BG   = ["#fbf7f4", "#fefff9"];
-const CHECKED_BG = ["#E7CEBC", "#94BC77"];
-const SUBJ_BG    = ["#ead5cb", "#eaf2e3"];
+const CHILD_BG   = ["#e3effe", "#fefff9"];
+const CHECKED_BG = ["#6297DC", "#94BC77"];
+const SUBJ_BG    = ["#ccdaf9", "#eaf2e3"];
 
 const STORAGE_KEY        = "progress_checked_v2";
 const STORAGE_DATA_KEY   = "progress_data_v2";
