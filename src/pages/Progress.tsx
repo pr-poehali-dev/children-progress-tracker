@@ -71,12 +71,34 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
     else colWidths.push(50);
   }
 
-  let childIndex = -1;
+  // Строим карту row → childIndex через merges колонки 0
+  const rowChildIndex = new Map<number, number>();
+  let childCounter = -1;
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    const key0 = `${r}_0`;
+    if (!skipSet.has(key0)) {
+      // Начало новой строки в col0 — новый ребёнок
+      const addr = XLSX.utils.encode_cell({ r, c: 0 });
+      const cell0 = ws[addr] as XLSX.CellObject | undefined;
+      if (cell0 && cell0.v !== undefined && cell0.v !== null && String(cell0.v).trim() !== "") {
+        childCounter++;
+      }
+    }
+    rowChildIndex.set(r, childCounter < 0 ? 0 : childCounter);
+  }
+  // Распространяем индекс на строки внутри rowspan col0
+  for (const m of merges) {
+    if (m.s.c === 0 && m.s.r >= range.s.r + 1) {
+      const idx = rowChildIndex.get(m.s.r) ?? 0;
+      for (let r2 = m.s.r + 1; r2 <= m.e.r; r2++) {
+        rowChildIndex.set(r2, idx);
+      }
+    }
+  }
 
   const rows: ProgressRow[] = [];
   for (let r = range.s.r; r <= range.e.r; r++) {
     const cells: ProgressCell[] = [];
-    let rowHasNameInCol0 = false;
 
     for (let c = range.s.c; c <= range.e.c; c++) {
       const key = `${r}_${c}`;
@@ -114,10 +136,6 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
 
       const formatted = formatCellValue(cell);
 
-      if (c === 0 && r > 0 && formatted !== null && formatted !== "") {
-        rowHasNameInCol0 = true;
-      }
-
       cells.push({
         value: formatted,
         fontSize: font.sz ?? undefined,
@@ -130,8 +148,8 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
       });
     }
 
-    if (rowHasNameInCol0) childIndex++;
-    rows.push({ cells, childIndex: r === 0 ? -1 : childIndex });
+    const childIndex = r === range.s.r ? -1 : (rowChildIndex.get(r) ?? 0);
+    rows.push({ cells, childIndex });
   }
 
   return { rows, colWidths };
@@ -271,8 +289,8 @@ export default function ProgressView({ onBack }: Props) {
                 <tbody>
                   {sheet.rows.map((row, ri) => {
                     const isHeaderRow = ri === 0;
-                    const childIdx = row.childIndex ?? -1;
-                    const isDataRow = !isHeaderRow && childIdx >= 0;
+                    const childIdx = row.childIndex !== undefined && row.childIndex >= 0 ? row.childIndex : 0;
+                    const isDataRow = !isHeaderRow;
 
                     return (
                       <tr key={ri}>
