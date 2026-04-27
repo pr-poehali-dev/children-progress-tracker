@@ -395,11 +395,7 @@ export default function ProgressView({ onBack }: Props) {
                                 style={{
                                   borderBottom: groupBorder,
                                   borderRight: "1px solid #e8edf2",
-                                  background: isEmpty
-                                    ? "#f4f7fb"
-                                    : isChecked
-                                      ? checkedBg
-                                      : childBg,
+                                  background: isChecked ? checkedBg : childBg,
                                   textAlign: "center",
                                   verticalAlign: "middle",
                                   fontSize: big ? 14 : 9,
