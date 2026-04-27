@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Icon from "@/components/ui/icon";
+import * as XLSX from "xlsx";
 
 type IconName = string;
 
@@ -414,6 +415,175 @@ function AdminView({ onBack }: { onBack: () => void }) {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importOk, setImportOk] = useState<string | null>(null);
+  const fileRef1 = useRef<HTMLInputElement>(null);
+  const fileRef2 = useRef<HTMLInputElement>(null);
+
+  const parseSheet = (file: File): Promise<string[][]> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const wb = XLSX.read(ev.target?.result, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+          resolve(rows);
+        } catch {
+          reject(new Error("Не удалось прочитать файл"));
+        }
+      };
+      reader.onerror = () => reject(new Error("Ошибка чтения файла"));
+      reader.readAsArrayBuffer(file);
+    });
+
+  const handleImportTable1 = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImportError(null);
+    try {
+      const rows = await parseSheet(file);
+      if (rows.length < 2) throw new Error("Таблица пустая");
+
+      const headerRow = rows[0];
+      const weekCols: { name: string; idx: number }[] = [];
+      for (let ci = 1; ci < headerRow.length; ci++) {
+        const h = String(headerRow[ci]).trim();
+        if (h) weekCols.push({ name: h, idx: ci });
+      }
+      if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями");
+
+      setChildren((prevChildren) => {
+        let updated = prevChildren;
+
+        for (const { name: weekName, idx: colIdx } of weekCols) {
+          const existingWi = updated[0]?.entries.findIndex((en) => en.week === weekName);
+
+          for (let ri = 1; ri < rows.length; ri++) {
+            const rowName = String(rows[ri][0]).trim();
+            if (!rowName) continue;
+            const rawVal = rows[ri][colIdx];
+            const val = rawVal === "" || rawVal === undefined ? null : Number(rawVal);
+            if (val !== null && isNaN(val)) continue;
+
+            const childIdx = updated.findIndex(
+              (c) => c.name.toLowerCase() === rowName.toLowerCase()
+            );
+            if (childIdx === -1) continue;
+
+            if (existingWi !== -1 && existingWi !== undefined) {
+              updated = updated.map((c, ci) => {
+                if (ci !== childIdx) return c;
+                const entries = c.entries.map((en, wi) => {
+                  if (wi !== existingWi) return en;
+                  if (en.score !== null) return en;
+                  return { ...en, score: val };
+                });
+                return { ...c, entries };
+              });
+            } else {
+              updated = updated.map((c, ci) => {
+                if (ci !== childIdx) return c;
+                const entries = [...c.entries, { week: weekName, score: val }];
+                return { ...c, entries };
+              });
+            }
+          }
+
+          if (existingWi === -1 || existingWi === undefined) {
+            updated = updated.map((c) => {
+              if (c.entries[c.entries.length - 1]?.week !== weekName) {
+                return { ...c, entries: [...c.entries, { week: weekName, score: null }] };
+              }
+              return c;
+            });
+          }
+        }
+
+        saveData(updated);
+        return updated;
+      });
+
+      setImportOk("Таблица №1 импортирована");
+      setTimeout(() => setImportOk(null), 3000);
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : "Ошибка импорта");
+    }
+  };
+
+  const handleImportTable2 = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImportError(null);
+    try {
+      const rows = await parseSheet(file);
+      if (rows.length < 2) throw new Error("Таблица пустая");
+
+      const headerRow = rows[0];
+      const weekCols: { name: string; idx: number }[] = [];
+      for (let ci = 1; ci < headerRow.length; ci++) {
+        const h = String(headerRow[ci]).trim();
+        if (h) weekCols.push({ name: h, idx: ci });
+      }
+      if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями");
+
+      setChildren((prevChildren) => {
+        setAttendance((prevAtt) => {
+          let updatedAtt = [...prevAtt];
+
+          for (const { name: weekName, idx: colIdx } of weekCols) {
+            let wi = prevChildren[0]?.entries.findIndex((en) => en.week === weekName);
+            if (wi === -1 || wi === undefined) wi = updatedAtt.length;
+
+            while (updatedAtt.length <= wi) {
+              updatedAtt = [...updatedAtt, { maxLessons: null, children: {} }];
+            }
+
+            for (let ri = 1; ri < rows.length; ri++) {
+              const rowName = String(rows[ri][0]).trim().toLowerCase();
+              if (!rowName) continue;
+              const rawVal = rows[ri][colIdx];
+              const val = rawVal === "" || rawVal === undefined ? null : Number(rawVal);
+              if (val !== null && isNaN(val)) continue;
+
+              if (rowName.includes("норм")) {
+                if (updatedAtt[wi].maxLessons === null) {
+                  updatedAtt = updatedAtt.map((w, i) =>
+                    i === wi ? { ...w, maxLessons: val } : w
+                  );
+                }
+              } else {
+                const child = prevChildren.find(
+                  (c) => c.name.toLowerCase() === rowName
+                );
+                if (!child) continue;
+                if (updatedAtt[wi].children?.[child.id] !== null &&
+                    updatedAtt[wi].children?.[child.id] !== undefined) continue;
+                updatedAtt = updatedAtt.map((w, i) =>
+                  i === wi
+                    ? { ...w, children: { ...w.children, [child.id]: val } }
+                    : w
+                );
+              }
+            }
+          }
+
+          saveAttendance(updatedAtt);
+          return updatedAtt;
+        });
+
+        return prevChildren;
+      });
+
+      setImportOk("Таблица №2 импортирована");
+      setTimeout(() => setImportOk(null), 3000);
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : "Ошибка импорта");
+    }
+  };
+
   const NAME_W = 180; // px — ширина липкой колонки с именем
   const CELL_W = 72;  // px — ширина ячейки с баллом
 
@@ -428,7 +598,7 @@ function AdminView({ onBack }: { onBack: () => void }) {
             <span className="text-lg">🏫</span>
             <p className="font-bold text-foreground">Администратор — баллы</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <button
               onClick={() => setAddingChild(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
@@ -436,6 +606,22 @@ function AdminView({ onBack }: { onBack: () => void }) {
               <Icon name="UserPlus" size={15} />
               Ребёнок
             </button>
+            <button
+              onClick={() => fileRef1.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
+            >
+              <Icon name="Upload" size={15} />
+              Табл. №1
+            </button>
+            <button
+              onClick={() => fileRef2.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+            >
+              <Icon name="Upload" size={15} />
+              Табл. №2
+            </button>
+            <input ref={fileRef1} type="file" accept=".xlsx" className="hidden" onChange={handleImportTable1} />
+            <input ref={fileRef2} type="file" accept=".xlsx" className="hidden" onChange={handleImportTable2} />
             <button
               onClick={handleSave}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
@@ -448,6 +634,21 @@ function AdminView({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       </header>
+
+      {/* Уведомления импорта */}
+      {importOk && (
+        <div className="mx-4 mt-3 px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium flex items-center gap-2 animate-fade-in">
+          <Icon name="CheckCircle" size={15} />
+          {importOk}
+        </div>
+      )}
+      {importError && (
+        <div className="mx-4 mt-3 px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium flex items-center gap-2 animate-fade-in">
+          <Icon name="AlertCircle" size={15} />
+          {importError}
+          <button onClick={() => setImportError(null)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
 
       {/* Модалка добавления ребёнка */}
       {addingChild && (
