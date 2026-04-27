@@ -253,11 +253,7 @@ function BarChart({
                 }
               }
 
-              const color = isEmpty
-                ? "#e2e8f0"
-                : e.best
-                ? "#f59e0b"
-                : getBarColor(score, system, prevScore);
+              const color = isEmpty ? "#e2e8f0" : getBarColor(score, system, prevScore);
 
               return (
                 <div
