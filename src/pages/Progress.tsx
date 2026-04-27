@@ -132,6 +132,7 @@ export default function ProgressView({ onBack }: Props) {
   const [error, setError] = useState("");
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
   const [saved, setSaved] = useState(false);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -235,7 +236,26 @@ export default function ProgressView({ onBack }: Props) {
           </div>
         )}
 
-        {data && (
+        {data && (() => {
+          const allSubjects = Array.from(new Set(data.children.flatMap(c => c.rows.map(r => r.subject)))).sort();
+          return (<>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                onClick={() => setSubjectFilter(null)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter === null ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
+              >
+                Все предметы
+              </button>
+              {allSubjects.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSubjectFilter(subjectFilter === s ? null : s)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter === s ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           <div className="rounded-[2rem] overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
             <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 110px)" }}>
               <table style={{
@@ -295,12 +315,15 @@ export default function ProgressView({ onBack }: Props) {
                     const checkedBg = CHECKED_BG[ci % 2];
                     const subjBg    = SUBJ_BG[ci % 2];
                     const isLast    = ci === data.children.length - 1;
+                    const visibleRows = subjectFilter ? child.rows.filter(r => r.subject === subjectFilter) : child.rows;
+                    if (visibleRows.length === 0) return null;
 
-                    return child.rows.map((row, ri) => {
+                    return visibleRows.map((row, vri) => {
+                      const ri = child.rows.indexOf(row);
                       const total = row.tasks.filter(t => t !== null).length;
                       const done  = row.tasks.filter((t, ti) => t !== null && checked.has(`${ci}_${ri}_${ti}`)).length;
                       const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
-                      const isLastRow = ri === child.rows.length - 1;
+                      const isLastRow = vri === visibleRows.length - 1;
                       const groupBorder = isLastRow && !isLast ? "5px solid #6b7fa3" : "1px solid #c5d3e8";
 
                       // Для каждой ячейки определяем: большая или маленькая
@@ -323,9 +346,9 @@ export default function ProgressView({ onBack }: Props) {
 
                       return (
                         <tr key={`${ci}_${ri}`}>
-                          {ri === 0 && (
+                          {vri === 0 && (
                             <td
-                              rowSpan={child.rows.length}
+                              rowSpan={visibleRows.length}
                               style={{
                                 position: "sticky", left: 0, zIndex: 11,
                                 background: childBg,
@@ -421,7 +444,8 @@ export default function ProgressView({ onBack }: Props) {
               </table>
             </div>
           </div>
-        )}
+          </>);
+        })()}
       </div>
     </div>
   );
