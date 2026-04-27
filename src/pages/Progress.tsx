@@ -71,29 +71,24 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
     else colWidths.push(50);
   }
 
-  // Строим карту row → childIndex через merges колонки 0
+  // Строим карту row → childIndex
+  // Каждая строка данных (не заголовок) с непустой ячейкой col0 = новый ребёнок
+  // Строки внутри rowspan col0 получают тот же индекс что и начальная строка
   const rowChildIndex = new Map<number, number>();
   let childCounter = -1;
   for (let r = range.s.r + 1; r <= range.e.r; r++) {
     const key0 = `${r}_0`;
     if (!skipSet.has(key0)) {
-      // Начало новой строки в col0 — новый ребёнок
-      const addr = XLSX.utils.encode_cell({ r, c: 0 });
-      const cell0 = ws[addr] as XLSX.CellObject | undefined;
-      if (cell0 && cell0.v !== undefined && cell0.v !== null && String(cell0.v).trim() !== "") {
-        childCounter++;
+      // Эта строка — начало нового блока в col0
+      childCounter++;
+      // Смотрим на rowspan этой ячейки и заполняем все строки блока
+      const merge0 = mergeMap.get(key0);
+      const span = merge0?.rowSpan ?? 1;
+      for (let rr = r; rr < r + span; rr++) {
+        rowChildIndex.set(rr, childCounter);
       }
     }
-    rowChildIndex.set(r, childCounter < 0 ? 0 : childCounter);
-  }
-  // Распространяем индекс на строки внутри rowspan col0
-  for (const m of merges) {
-    if (m.s.c === 0 && m.s.r >= range.s.r + 1) {
-      const idx = rowChildIndex.get(m.s.r) ?? 0;
-      for (let r2 = m.s.r + 1; r2 <= m.e.r; r2++) {
-        rowChildIndex.set(r2, idx);
-      }
-    }
+    // Если key0 в skipSet — уже заполнено выше через span
   }
 
   const rows: ProgressRow[] = [];
