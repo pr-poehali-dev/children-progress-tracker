@@ -9,10 +9,14 @@ interface ProgressCell {
   bg?: string;
   color?: string;
   align?: "left" | "center" | "right";
+  colSpan?: number;
+  rowSpan?: number;
+  isDate?: boolean;
 }
 
 interface ProgressRow {
   cells: ProgressCell[];
+  childIndex?: number;
 }
 
 interface ProgressSheet {
@@ -28,12 +32,38 @@ function hexFromArgb(argb: string | undefined): string | undefined {
   return undefined;
 }
 
+function formatCellValue(cell: XLSX.CellObject): string | number | null {
+  if (cell.v === undefined || cell.v === null) return null;
+  // Excel serial date: числа вроде 45908
+  if (cell.t === "n" && typeof cell.v === "number" && cell.v > 40000 && cell.v < 55000) {
+    const date = XLSX.SSF.parse_date_code(cell.v as number);
+    if (date) {
+      const months = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+      return `${date.d} ${months[date.m - 1]}`;
+    }
+  }
+  return cell.v as string | number;
+}
+
 function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
   const ref = ws["!ref"];
   if (!ref) return { rows: [], colWidths: [] };
 
   const range = XLSX.utils.decode_range(ref);
-  const rows: ProgressRow[] = [];
+
+  // Collect merges
+  const merges: XLSX.Range[] = ws["!merges"] ?? [];
+  const mergeMap = new Map<string, { rowSpan: number; colSpan: number }>();
+  const skipSet = new Set<string>();
+  for (const m of merges) {
+    const key = `${m.s.r}_${m.s.c}`;
+    mergeMap.set(key, { rowSpan: m.e.r - m.s.r + 1, colSpan: m.e.c - m.s.c + 1 });
+    for (let r2 = m.s.r; r2 <= m.e.r; r2++) {
+      for (let c2 = m.s.c; c2 <= m.e.c; c2++) {
+        if (r2 !== m.s.r || c2 !== m.s.c) skipSet.add(`${r2}_${c2}`);
+      }
+    }
+  }
 
   const colWidths: number[] = [];
   const rawCols = (ws["!cols"] as Array<{ wch?: number; wpx?: number }> | undefined) ?? [];
@@ -44,20 +74,32 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
     else colWidths.push(50);
   }
 
+  // Detect header row (row 0) — it contains dates
+  // After that, detect child groups: col 0 non-empty = new child
+  let childIndex = -1;
+
+  const rows: ProgressRow[] = [];
   for (let r = range.s.r; r <= range.e.r; r++) {
     const cells: ProgressCell[] = [];
+    let rowHasNameInCol0 = false;
+
     for (let c = range.s.c; c <= range.e.c; c++) {
+      const key = `${r}_${c}`;
+      if (skipSet.has(key)) continue;
+
       const addr = XLSX.utils.encode_cell({ r, c });
-      const cell = ws[addr] as XLSX.CellObject & {
+      const cell = ws[addr] as (XLSX.CellObject & {
         s?: {
           font?: { sz?: number; bold?: boolean; color?: { rgb?: string } };
           fill?: { fgColor?: { rgb?: string }; bgColor?: { rgb?: string } };
           alignment?: { horizontal?: string };
         };
-      };
+      }) | undefined;
+
+      const merge = mergeMap.get(key);
 
       if (!cell) {
-        cells.push({ value: null });
+        cells.push({ value: null, colSpan: merge?.colSpan, rowSpan: merge?.rowSpan });
         continue;
       }
 
@@ -75,20 +117,33 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
       if (alignment.horizontal === "left") align = "left";
       else if (alignment.horizontal === "right") align = "right";
 
+      const formatted = formatCellValue(cell);
+
+      if (c === 0 && r > 0 && formatted !== null && formatted !== "") {
+        rowHasNameInCol0 = true;
+      }
+
       cells.push({
-        value: cell.v !== undefined ? cell.v : null,
+        value: formatted,
         fontSize: font.sz ?? undefined,
         bold: font.bold ?? false,
         bg: bgHex,
         color: colorHex,
         align,
+        colSpan: merge?.colSpan,
+        rowSpan: merge?.rowSpan,
       });
     }
-    rows.push({ cells });
+
+    if (rowHasNameInCol0) childIndex++;
+    rows.push({ cells, childIndex: r === 0 ? -1 : childIndex });
   }
 
   return { rows, colWidths };
 }
+
+// Alternating row background colors for child groups
+const CHILD_COLORS = ["#ffffff", "#f0f7ff"];
 
 interface Props {
   onBack: () => void;
@@ -118,15 +173,18 @@ export default function ProgressView({ onBack }: Props) {
     e.target.value = "";
   };
 
+  // Header top offset for sticky header row (below app header ~57px)
+  const HEADER_HEIGHT = 57;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="bg-white sticky top-0 z-20" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
+      <header
+        className="bg-white sticky top-0 z-30"
+        style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}
+      >
         <div className="px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className="p-2 rounded-xl hover:bg-muted transition-colors"
-            >
+            <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
             </button>
             <span className="text-lg">📊</span>
@@ -145,13 +203,7 @@ export default function ProgressView({ onBack }: Props) {
               <Icon name="Upload" size={15} />
               Загрузить Excel
             </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={handleImport}
-            />
+            <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={handleImport} />
           </div>
         </div>
       </header>
@@ -170,7 +222,9 @@ export default function ProgressView({ onBack }: Props) {
             </div>
             <div>
               <p className="font-semibold text-foreground mb-1">Загрузите таблицу Excel с прогрессом</p>
-              <p className="text-sm text-muted-foreground">Содержимое ячеек, цвета и размеры шрифтов будут отображены как в оригинале</p>
+              <p className="text-sm text-muted-foreground">
+                Содержимое ячеек, цвета и размеры шрифтов будут отображены как в оригинале
+              </p>
             </div>
             <button
               onClick={() => fileRef.current?.click()}
@@ -183,8 +237,11 @@ export default function ProgressView({ onBack }: Props) {
         )}
 
         {sheet && (
-          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
-            <div className="overflow-auto">
+          <div
+            className="bg-white rounded-2xl overflow-hidden"
+            style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}
+          >
+            <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 100px)" }}>
               <table
                 style={{
                   borderCollapse: "collapse",
@@ -198,29 +255,66 @@ export default function ProgressView({ onBack }: Props) {
                   ))}
                 </colgroup>
                 <tbody>
-                  {sheet.rows.map((row, ri) => (
-                    <tr key={ri}>
-                      {row.cells.map((cell, ci) => (
-                        <td
-                          key={ci}
-                          style={{
-                            border: "1px solid #d1d5db",
-                            padding: "2px 4px",
-                            fontSize: cell.fontSize ? `${cell.fontSize}pt` : "9pt",
-                            fontWeight: cell.bold ? "bold" : "normal",
-                            backgroundColor: cell.bg ?? "transparent",
-                            color: cell.color ?? "#111827",
-                            textAlign: cell.align ?? "center",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            verticalAlign: "middle",
-                          }}
-                        >
-                          {cell.value !== null && cell.value !== undefined ? String(cell.value) : ""}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {sheet.rows.map((row, ri) => {
+                    const isHeaderRow = ri === 0;
+                    const childColor =
+                      !isHeaderRow && row.childIndex !== undefined && row.childIndex >= 0
+                        ? CHILD_COLORS[row.childIndex % CHILD_COLORS.length]
+                        : undefined;
+
+                    return (
+                      <tr key={ri}>
+                        {row.cells.map((cell, ci) => {
+                          // Sticky: header row (ri=0) → sticky top; col 0 & col 1 → sticky left
+                          const isCol0 = ci === 0;
+                          const isCol1 = ci === 1;
+                          const stickyStyle: React.CSSProperties = {};
+
+                          if (isHeaderRow) {
+                            stickyStyle.position = "sticky";
+                            stickyStyle.top = HEADER_HEIGHT;
+                            stickyStyle.zIndex = 10;
+                          }
+                          if (isCol0) {
+                            stickyStyle.position = "sticky";
+                            stickyStyle.left = 0;
+                            stickyStyle.zIndex = isHeaderRow ? 20 : 11;
+                          }
+                          if (isCol1) {
+                            const col0W = sheet.colWidths[0] ?? 0;
+                            stickyStyle.position = "sticky";
+                            stickyStyle.left = col0W;
+                            stickyStyle.zIndex = isHeaderRow ? 20 : 11;
+                          }
+
+                          const baseBg = cell.bg ?? childColor ?? "transparent";
+
+                          return (
+                            <td
+                              key={ci}
+                              colSpan={cell.colSpan}
+                              rowSpan={cell.rowSpan}
+                              style={{
+                                border: "1px solid #d1d5db",
+                                padding: "2px 4px",
+                                fontSize: cell.fontSize ? `${cell.fontSize}pt` : "9pt",
+                                fontWeight: cell.bold ? "bold" : "normal",
+                                backgroundColor: baseBg,
+                                color: cell.color ?? "#111827",
+                                textAlign: cell.align ?? "center",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                verticalAlign: "middle",
+                                ...stickyStyle,
+                              }}
+                            >
+                              {cell.value !== null && cell.value !== undefined ? String(cell.value) : ""}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
