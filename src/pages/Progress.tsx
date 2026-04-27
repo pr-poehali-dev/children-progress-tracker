@@ -11,7 +11,6 @@ interface ProgressCell {
   align?: "left" | "center" | "right";
   colSpan?: number;
   rowSpan?: number;
-  isDate?: boolean;
 }
 
 interface ProgressRow {
@@ -34,7 +33,6 @@ function hexFromArgb(argb: string | undefined): string | undefined {
 
 function formatCellValue(cell: XLSX.CellObject): string | number | null {
   if (cell.v === undefined || cell.v === null) return null;
-  // Excel serial date: числа вроде 45908
   if (cell.t === "n" && typeof cell.v === "number" && cell.v > 40000 && cell.v < 55000) {
     const date = XLSX.SSF.parse_date_code(cell.v as number);
     if (date) {
@@ -51,7 +49,6 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
 
   const range = XLSX.utils.decode_range(ref);
 
-  // Collect merges
   const merges: XLSX.Range[] = ws["!merges"] ?? [];
   const mergeMap = new Map<string, { rowSpan: number; colSpan: number }>();
   const skipSet = new Set<string>();
@@ -74,8 +71,6 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
     else colWidths.push(50);
   }
 
-  // Detect header row (row 0) — it contains dates
-  // After that, detect child groups: col 0 non-empty = new child
   let childIndex = -1;
 
   const rows: ProgressRow[] = [];
@@ -142,8 +137,23 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
   return { rows, colWidths };
 }
 
-// Alternating row background colors for child groups
-const CHILD_COLORS = ["#ffffff", "#f0f7ff"];
+// Цвета фона для чётных/нечётных групп детей — базовый и отмеченный
+const CHILD_BASE = ["#ffffff", "#f0f7ff"];
+const CHILD_CHECKED = ["#38bdf8", "#93c5fd"]; // голубой / светло-синий
+
+const STORAGE_KEY_CHECKED = "progress_checked_cells";
+
+function loadChecked(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CHECKED);
+    if (raw) return new Set(JSON.parse(raw) as string[]);
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+function saveChecked(s: Set<string>) {
+  localStorage.setItem(STORAGE_KEY_CHECKED, JSON.stringify([...s]));
+}
 
 interface Props {
   onBack: () => void;
@@ -154,6 +164,7 @@ export default function ProgressView({ onBack }: Props) {
   const [sheet, setSheet] = useState<ProgressSheet | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -173,15 +184,21 @@ export default function ProgressView({ onBack }: Props) {
     e.target.value = "";
   };
 
-  // Header top offset for sticky header row (below app header ~57px)
+  const toggleCell = (key: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      saveChecked(next);
+      return next;
+    });
+  };
+
   const HEADER_HEIGHT = 57;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header
-        className="bg-white sticky top-0 z-30"
-        style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}
-      >
+      <header className="bg-white sticky top-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
         <div className="px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
@@ -237,10 +254,7 @@ export default function ProgressView({ onBack }: Props) {
         )}
 
         {sheet && (
-          <div
-            className="bg-white rounded-2xl overflow-hidden"
-            style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}
-          >
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
             <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 100px)" }}>
               <table
                 style={{
@@ -257,19 +271,18 @@ export default function ProgressView({ onBack }: Props) {
                 <tbody>
                   {sheet.rows.map((row, ri) => {
                     const isHeaderRow = ri === 0;
-                    const childColor =
-                      !isHeaderRow && row.childIndex !== undefined && row.childIndex >= 0
-                        ? CHILD_COLORS[row.childIndex % CHILD_COLORS.length]
-                        : undefined;
+                    const childIdx = row.childIndex ?? -1;
+                    const isDataRow = !isHeaderRow && childIdx >= 0;
 
                     return (
                       <tr key={ri}>
                         {row.cells.map((cell, ci) => {
-                          // Sticky: header row (ri=0) → sticky top; col 0 & col 1 → sticky left
                           const isCol0 = ci === 0;
                           const isCol1 = ci === 1;
-                          const stickyStyle: React.CSSProperties = {};
+                          const isSticky = isHeaderRow || isCol0 || isCol1;
 
+                          // Sticky positioning
+                          const stickyStyle: React.CSSProperties = {};
                           if (isHeaderRow) {
                             stickyStyle.position = "sticky";
                             stickyStyle.top = HEADER_HEIGHT;
@@ -281,31 +294,48 @@ export default function ProgressView({ onBack }: Props) {
                             stickyStyle.zIndex = isHeaderRow ? 20 : 11;
                           }
                           if (isCol1) {
-                            const col0W = sheet.colWidths[0] ?? 0;
                             stickyStyle.position = "sticky";
-                            stickyStyle.left = col0W;
+                            stickyStyle.left = sheet.colWidths[0] ?? 0;
                             stickyStyle.zIndex = isHeaderRow ? 20 : 11;
                           }
 
-                          const isSticky = isHeaderRow || isCol0 || isCol1;
-                          const baseBg = cell.bg ?? childColor ?? (isSticky ? "#ffffff" : "transparent");
+                          // Кликабельны только дата-ячейки (не первые 2 колонки, не заголовок)
+                          const isClickable = isDataRow && !isCol0 && !isCol1;
+                          const cellKey = `${ri}_${ci}`;
+                          const isChecked = checked.has(cellKey);
+
+                          // Приоритет фона: отмечена → checked-цвет; иначе цвет из Excel; иначе чередование/белый
+                          let bg: string;
+                          if (isChecked && isClickable) {
+                            bg = CHILD_CHECKED[childIdx % 2];
+                          } else if (cell.bg) {
+                            bg = cell.bg;
+                          } else if (isDataRow) {
+                            bg = CHILD_BASE[childIdx % 2];
+                          } else {
+                            bg = isSticky ? "#ffffff" : "transparent";
+                          }
 
                           return (
                             <td
                               key={ci}
                               colSpan={cell.colSpan}
                               rowSpan={cell.rowSpan}
+                              onClick={isClickable ? () => toggleCell(cellKey) : undefined}
                               style={{
                                 border: "1px solid #d1d5db",
                                 padding: "2px 4px",
                                 fontSize: cell.fontSize ? `${cell.fontSize}pt` : "9pt",
                                 fontWeight: cell.bold ? "bold" : "normal",
-                                backgroundColor: baseBg,
+                                backgroundColor: bg,
                                 color: cell.color ?? "#111827",
                                 textAlign: cell.align ?? "center",
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
                                 verticalAlign: "middle",
+                                cursor: isClickable ? "pointer" : "default",
+                                userSelect: "none",
+                                transition: "background-color 0.15s",
                                 ...stickyStyle,
                               }}
                             >
