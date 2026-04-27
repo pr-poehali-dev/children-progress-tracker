@@ -420,6 +420,15 @@ function AdminView({ onBack }: { onBack: () => void }) {
   const fileRef1 = useRef<HTMLInputElement>(null);
   const fileRef2 = useRef<HTMLInputElement>(null);
 
+  const excelDateToStr = (val: unknown): string => {
+    if (typeof val === "number" && val > 40000 && val < 60000) {
+      const d = XLSX.SSF.parse_date_code(val);
+      const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+      return `${d.d} ${months[d.m - 1]}`;
+    }
+    return String(val);
+  };
+
   const parseSheet = (file: File): Promise<string[][]> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -427,8 +436,11 @@ function AdminView({ onBack }: { onBack: () => void }) {
         try {
           const wb = XLSX.read(ev.target?.result, { type: "array" });
           const ws = wb.Sheets[wb.SheetNames[0]];
-          const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-          resolve(rows);
+          const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+          const result: string[][] = rows.map((row) =>
+            (row as unknown[]).map((cell) => excelDateToStr(cell))
+          );
+          resolve(result);
         } catch {
           reject(new Error("Не удалось прочитать файл"));
         }
