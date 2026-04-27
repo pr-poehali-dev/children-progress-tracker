@@ -236,10 +236,11 @@ export default function ProgressView({ onBack }: Props) {
         )}
 
         {data && (
-          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
+          <div className="rounded-3xl overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
             <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 110px)" }}>
               <table style={{
-                borderCollapse: "collapse",
+                borderCollapse: "separate",
+                borderSpacing: 0,
                 tableLayout: "fixed",
                 minWidth: COL_NAME + COL_SUBJ + data.dates.length * COL_CELL,
               }}>
@@ -253,28 +254,34 @@ export default function ProgressView({ onBack }: Props) {
                   <tr>
                     <th style={{
                       position: "sticky", top: HEADER_TOP, left: 0, zIndex: 30,
-                      background: "#f8fafc", border: "1px solid #e2e8f0",
-                      padding: "6px 8px", fontSize: 11, fontWeight: 600,
-                      color: "#64748b", textAlign: "left",
+                      background: "linear-gradient(180deg,#f1f5f9 0%,#e8eef5 100%)",
+                      borderBottom: "2px solid #cbd5e1", borderRight: "1px solid #e2e8f0",
+                      padding: "10px 12px", fontSize: 11, fontWeight: 700,
+                      color: "#475569", textAlign: "left", letterSpacing: "0.04em",
+                      textTransform: "uppercase",
                     }}>
                       Ученик
                     </th>
                     <th style={{
                       position: "sticky", top: HEADER_TOP, left: COL_NAME, zIndex: 30,
-                      background: "#f8fafc", border: "1px solid #e2e8f0",
-                      padding: "6px 8px", fontSize: 11, fontWeight: 600,
-                      color: "#64748b", textAlign: "left",
+                      background: "linear-gradient(180deg,#f1f5f9 0%,#e8eef5 100%)",
+                      borderBottom: "2px solid #cbd5e1", borderRight: "2px solid #cbd5e1",
+                      padding: "10px 12px", fontSize: 11, fontWeight: 700,
+                      color: "#475569", textAlign: "left", letterSpacing: "0.04em",
+                      textTransform: "uppercase",
                     }}>
                       Предмет
                     </th>
                     {data.dates.map((d, i) => (
                       <th key={i} style={{
                         position: "sticky", top: HEADER_TOP, zIndex: 20,
-                        background: "#f8fafc", border: "1px solid #e2e8f0",
-                        padding: "4px 2px", fontSize: 10, fontWeight: 600,
+                        background: "linear-gradient(180deg,#f1f5f9 0%,#e8eef5 100%)",
+                        borderBottom: "2px solid #cbd5e1",
+                        borderRight: "1px solid #e2e8f0",
+                        padding: "6px 2px", fontSize: 10, fontWeight: 600,
                         color: "#64748b", textAlign: "center",
                         writingMode: "vertical-rl",
-                        height: 72, whiteSpace: "nowrap",
+                        height: 80, whiteSpace: "nowrap",
                       }}>
                         {d}
                       </th>
@@ -284,14 +291,17 @@ export default function ProgressView({ onBack }: Props) {
 
                 <tbody>
                   {data.children.map((child, ci) => {
-                    const childBg  = CHILD_BG[ci % 2];
+                    const childBg   = CHILD_BG[ci % 2];
                     const checkedBg = CHECKED_BG[ci % 2];
-                    const subjBg   = SUBJ_BG[ci % 2];
+                    const subjBg    = SUBJ_BG[ci % 2];
+                    const isLast    = ci === data.children.length - 1;
 
                     return child.rows.map((row, ri) => {
                       const total = row.tasks.filter(t => t !== null).length;
                       const done  = row.tasks.filter((t, ti) => t !== null && checked.has(`${ci}_${ri}_${ti}`)).length;
                       const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+                      const isLastRow = ri === child.rows.length - 1;
+                      const groupBorder = isLastRow && !isLast ? "2px solid #cbd5e1" : "1px solid #e8edf2";
 
                       return (
                         <tr key={`${ci}_${ri}`}>
@@ -301,14 +311,16 @@ export default function ProgressView({ onBack }: Props) {
                               style={{
                                 position: "sticky", left: 0, zIndex: 11,
                                 background: childBg,
-                                border: "1px solid #e2e8f0",
-                                padding: "6px 8px",
-                                fontSize: 12, fontWeight: 700,
-                                color: "#1e293b",
+                                borderBottom: isLast ? "none" : "2px solid #cbd5e1",
+                                borderRight: "1px solid #e2e8f0",
+                                padding: "10px 12px",
+                                fontSize: 13, fontWeight: 800,
+                                color: "#0f172a",
                                 verticalAlign: "middle",
                                 textAlign: "left",
                                 whiteSpace: "normal",
                                 lineHeight: 1.4,
+                                boxShadow: "2px 0 6px rgba(0,0,0,0.04)",
                               }}
                             >
                               {child.name}
@@ -318,26 +330,35 @@ export default function ProgressView({ onBack }: Props) {
                           <td style={{
                             position: "sticky", left: COL_NAME, zIndex: 11,
                             background: subjBg,
-                            border: "1px solid #e2e8f0",
-                            padding: "5px 8px",
+                            borderBottom: groupBorder,
+                            borderRight: "2px solid #cbd5e1",
+                            padding: "7px 12px",
                             fontSize: 11,
                             color: "#334155",
                             verticalAlign: "middle",
                             whiteSpace: "nowrap",
+                            boxShadow: "2px 0 6px rgba(0,0,0,0.04)",
                           }}>
-                            <div style={{ marginBottom: 4, fontWeight: 500 }}>{row.subject}</div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <div style={{ marginBottom: 5, fontWeight: 600, fontSize: 12 }}>{row.subject}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               <div style={{
-                                flex: 1, height: 5, background: "#e2e8f0",
-                                borderRadius: 4, overflow: "hidden",
+                                flex: 1, height: 6, background: "#dde5ef",
+                                borderRadius: 99, overflow: "hidden",
+                                boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)",
                               }}>
                                 <div style={{
                                   height: "100%", width: `${pct}%`,
-                                  background: checkedBg, borderRadius: 4,
-                                  transition: "width 0.3s ease",
+                                  background: `linear-gradient(90deg, ${checkedBg}, ${checkedBg}cc)`,
+                                  borderRadius: 99,
+                                  transition: "width 0.4s cubic-bezier(.4,0,.2,1)",
+                                  boxShadow: pct > 0 ? "0 1px 4px rgba(56,189,248,0.4)" : "none",
                                 }} />
                               </div>
-                              <span style={{ fontSize: 9, color: "#94a3b8", minWidth: 26, textAlign: "right" }}>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700,
+                                color: pct === 100 ? "#16a34a" : "#94a3b8",
+                                minWidth: 30, textAlign: "right",
+                              }}>
                                 {done}/{total}
                               </span>
                             </div>
@@ -353,18 +374,24 @@ export default function ProgressView({ onBack }: Props) {
                                 onClick={isEmpty ? undefined : () => toggleCell(key)}
                                 title={isEmpty ? "" : isChecked ? "Снять отметку" : "Отметить выполненным"}
                                 style={{
-                                  border: "1px solid #e2e8f0",
-                                  background: isEmpty ? "#f8fafc" : isChecked ? checkedBg : childBg,
+                                  borderBottom: groupBorder,
+                                  borderRight: "1px solid #e8edf2",
+                                  background: isEmpty
+                                    ? "#f4f7fb"
+                                    : isChecked
+                                      ? checkedBg
+                                      : childBg,
                                   textAlign: "center",
                                   verticalAlign: "middle",
-                                  fontSize: 10,
-                                  fontWeight: isChecked ? 700 : 400,
-                                  color: isChecked ? "#fff" : "#475569",
+                                  fontSize: 11,
+                                  fontWeight: isChecked ? 800 : 400,
+                                  color: isChecked ? "#fff" : isEmpty ? "#c4cdd8" : "#475569",
                                   cursor: isEmpty ? "default" : "pointer",
                                   userSelect: "none",
-                                  transition: "background 0.15s",
-                                  height: 34,
+                                  transition: "background 0.18s, transform 0.1s",
+                                  height: 38,
                                   padding: 0,
+                                  boxShadow: isChecked ? `inset 0 -2px 4px rgba(0,0,0,0.12)` : "none",
                                 }}
                               >
                                 {task ?? ""}
