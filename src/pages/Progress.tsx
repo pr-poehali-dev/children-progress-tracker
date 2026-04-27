@@ -132,7 +132,7 @@ export default function ProgressView({ onBack }: Props) {
   const [error, setError] = useState("");
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
   const [saved, setSaved] = useState(false);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<Set<string>>(new Set());
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -241,16 +241,20 @@ export default function ProgressView({ onBack }: Props) {
           return (<>
             <div className="flex flex-wrap gap-2 mb-3">
               <button
-                onClick={() => setSubjectFilter(null)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter === null ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
+                onClick={() => setSubjectFilter(new Set())}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter.size === 0 ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
               >
                 Все предметы
               </button>
               {allSubjects.map(s => (
                 <button
                   key={s}
-                  onClick={() => setSubjectFilter(subjectFilter === s ? null : s)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter === s ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
+                  onClick={() => setSubjectFilter(prev => {
+                    const next = new Set(prev);
+                    if (next.has(s)) { next.delete(s); } else { next.add(s); }
+                    return next;
+                  })}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter.has(s) ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
                 >
                   {s}
                 </button>
@@ -315,7 +319,7 @@ export default function ProgressView({ onBack }: Props) {
                     const checkedBg = CHECKED_BG[ci % 2];
                     const subjBg    = SUBJ_BG[ci % 2];
                     const isLast    = ci === data.children.length - 1;
-                    const visibleRows = subjectFilter ? child.rows.filter(r => r.subject === subjectFilter) : child.rows;
+                    const visibleRows = subjectFilter.size > 0 ? child.rows.filter(r => subjectFilter.has(r.subject)) : child.rows;
                     if (visibleRows.length === 0) return null;
 
                     return visibleRows.map((row, vri) => {
