@@ -151,7 +151,7 @@ function parseSheet(ws: XLSX.WorkSheet): ProgressSheet {
 }
 
 // Цвета фона для чётных/нечётных групп детей — базовый и отмеченный
-const CHILD_BASE = ["#ffffff", "#f0f7ff"];
+const CHILD_BASE = ["#f0f9ff", "#f0fdf4"]; // голубоватый / зеленоватый
 const CHILD_CHECKED = ["#38bdf8", "#93c5fd"]; // голубой / светло-синий
 
 const STORAGE_KEY_CHECKED = "progress_checked_cells";
@@ -321,10 +321,11 @@ export default function ProgressView({ onBack }: Props) {
                           let bg: string;
                           if (isChecked) {
                             bg = CHILD_CHECKED[childIdx % 2];
+                          } else if (isDataRow) {
+                            // Для строк данных: базовое чередование по ребёнку, Excel-цвет игнорируем
+                            bg = CHILD_BASE[childIdx % 2];
                           } else if (cell.bg) {
                             bg = cell.bg;
-                          } else if (isDataRow) {
-                            bg = CHILD_BASE[childIdx % 2];
                           } else {
                             bg = isSticky ? "#ffffff" : "transparent";
                           }
