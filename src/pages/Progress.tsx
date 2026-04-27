@@ -331,8 +331,8 @@ export default function ProgressView({ onBack }: Props) {
                                 background: childBg,
                                 borderBottom: isLast ? "none" : "2px solid #a0b4ce",
                                 borderRight: "1px solid #b8cce0",
-                                padding: "10px 12px",
-                                fontSize: 13, fontWeight: 800,
+                                padding: "4px 8px",
+                                fontSize: 12, fontWeight: 800,
                                 color: "#0f172a",
                                 verticalAlign: "middle",
                                 textAlign: "left",
@@ -350,17 +350,17 @@ export default function ProgressView({ onBack }: Props) {
                             background: subjBg,
                             borderBottom: groupBorder,
                             borderRight: "2px solid #a0b4ce",
-                            padding: "7px 12px",
-                            fontSize: 11,
+                            padding: "3px 8px",
+                            fontSize: 10,
                             color: "#334155",
                             verticalAlign: "middle",
                             whiteSpace: "nowrap",
                             boxShadow: "2px 0 6px rgba(0,0,0,0.04)",
                           }}>
-                            <div style={{ marginBottom: 5, fontWeight: 600, fontSize: 12 }}>{row.subject}</div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ marginBottom: 2, fontWeight: 600, fontSize: 10, lineHeight: 1.2 }}>{row.subject}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                               <div style={{
-                                flex: 1, height: 6, background: "#dde5ef",
+                                flex: 1, height: 4, background: "#dde5ef",
                                 borderRadius: 99, overflow: "hidden",
                                 boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)",
                               }}>
@@ -373,9 +373,9 @@ export default function ProgressView({ onBack }: Props) {
                                 }} />
                               </div>
                               <span style={{
-                                fontSize: 10, fontWeight: 700,
+                                fontSize: 9, fontWeight: 700,
                                 color: pct === 100 ? "#16a34a" : "#94a3b8",
-                                minWidth: 30, textAlign: "right",
+                                minWidth: 24, textAlign: "right",
                               }}>
                                 {done}/{total}
                               </span>
