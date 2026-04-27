@@ -255,7 +255,7 @@ export default function ProgressView({ onBack }: Props) {
                     <th style={{
                       position: "sticky", top: HEADER_TOP, left: 0, zIndex: 30,
                       background: "linear-gradient(180deg,#f1f5f9 0%,#e8eef5 100%)",
-                      borderBottom: "2px solid #cbd5e1", borderRight: "1px solid #e2e8f0",
+                      borderBottom: "2px solid #a0b4ce", borderRight: "1px solid #b8cce0",
                       padding: "10px 12px", fontSize: 11, fontWeight: 700,
                       color: "#475569", textAlign: "left", letterSpacing: "0.04em",
                       textTransform: "uppercase",
@@ -265,7 +265,7 @@ export default function ProgressView({ onBack }: Props) {
                     <th style={{
                       position: "sticky", top: HEADER_TOP, left: COL_NAME, zIndex: 30,
                       background: "linear-gradient(180deg,#f1f5f9 0%,#e8eef5 100%)",
-                      borderBottom: "2px solid #cbd5e1", borderRight: "2px solid #cbd5e1",
+                      borderBottom: "2px solid #a0b4ce", borderRight: "2px solid #a0b4ce",
                       padding: "10px 12px", fontSize: 11, fontWeight: 700,
                       color: "#475569", textAlign: "left", letterSpacing: "0.04em",
                       textTransform: "uppercase",
@@ -276,8 +276,8 @@ export default function ProgressView({ onBack }: Props) {
                       <th key={i} style={{
                         position: "sticky", top: HEADER_TOP, zIndex: 20,
                         background: "linear-gradient(180deg,#f1f5f9 0%,#e8eef5 100%)",
-                        borderBottom: "2px solid #cbd5e1",
-                        borderRight: "1px solid #e2e8f0",
+                        borderBottom: "2px solid #a0b4ce",
+                        borderRight: "1px solid #b8cce0",
                         padding: "6px 2px", fontSize: 10, fontWeight: 600,
                         color: "#64748b", textAlign: "center",
                         writingMode: "vertical-rl",
@@ -301,7 +301,7 @@ export default function ProgressView({ onBack }: Props) {
                       const done  = row.tasks.filter((t, ti) => t !== null && checked.has(`${ci}_${ri}_${ti}`)).length;
                       const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
                       const isLastRow = ri === child.rows.length - 1;
-                      const groupBorder = isLastRow && !isLast ? "5px solid #94a3b8" : "1px solid #e8edf2";
+                      const groupBorder = isLastRow && !isLast ? "5px solid #6b7fa3" : "1px solid #c5d3e8";
 
                       // Для каждой ячейки определяем: большая или маленькая
                       // Большая = уникальное значение в строке ИЛИ последнее вхождение повторяющегося
@@ -329,8 +329,8 @@ export default function ProgressView({ onBack }: Props) {
                               style={{
                                 position: "sticky", left: 0, zIndex: 11,
                                 background: childBg,
-                                borderBottom: isLast ? "none" : "2px solid #cbd5e1",
-                                borderRight: "1px solid #e2e8f0",
+                                borderBottom: isLast ? "none" : "2px solid #a0b4ce",
+                                borderRight: "1px solid #b8cce0",
                                 padding: "10px 12px",
                                 fontSize: 13, fontWeight: 800,
                                 color: "#0f172a",
@@ -349,7 +349,7 @@ export default function ProgressView({ onBack }: Props) {
                             position: "sticky", left: COL_NAME, zIndex: 11,
                             background: subjBg,
                             borderBottom: groupBorder,
-                            borderRight: "2px solid #cbd5e1",
+                            borderRight: "2px solid #a0b4ce",
                             padding: "7px 12px",
                             fontSize: 11,
                             color: "#334155",
@@ -394,7 +394,7 @@ export default function ProgressView({ onBack }: Props) {
                                 title={isEmpty ? "" : isChecked ? "Снять отметку" : "Отметить выполненным"}
                                 style={{
                                   borderBottom: groupBorder,
-                                  borderRight: "1px solid #e8edf2",
+                                  borderRight: "1px solid #c5d3e8",
                                   background: isChecked ? checkedBg : childBg,
                                   textAlign: "center",
                                   verticalAlign: "middle",
