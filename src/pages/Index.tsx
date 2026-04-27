@@ -468,68 +468,39 @@ function AdminView({ onBack }: { onBack: () => void }) {
       if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями (начиная с колонки C)");
 
       setChildren((prevChildren) => {
-        let updated = [...prevChildren];
+        const allWeeks = weekCols.map((w) => w.name);
 
-        // Собираем все недели из файла, добавляем новые которых ещё нет
-        const existingWeeks = updated[0]?.entries.map((e) => e.week) ?? [];
-        const allWeeks = [...existingWeeks];
-        for (const { name } of weekCols) {
-          if (!allWeeks.includes(name)) allWeeks.push(name);
-        }
-
-        // Синхронизируем записи всех существующих детей под новый список недель
-        updated = updated.map((c) => {
-          const newEntries = allWeeks.map((w) => {
-            const ex = c.entries.find((en) => en.week === w);
-            return ex ?? { week: w, score: null };
-          });
-          return { ...c, entries: newEntries };
-        });
-
-        // Обрабатываем строки файла
+        // Строим новый список детей из файла
+        const newChildren: Child[] = [];
         for (let ri = 1; ri < rows.length; ri++) {
           const rowName = String(rows[ri][0]).trim();
           const rowLogin = String(rows[ri][1]).trim().toLowerCase();
           if (!rowName) continue;
 
-          let childIdx = updated.findIndex(
+          // Сохраняем id если ребёнок уже был в системе
+          const existing = prevChildren.find(
             (c) => c.name.toLowerCase() === rowName.toLowerCase()
           );
+          const id = existing?.id ?? `import_${Date.now()}_${ri}`;
+          const login = rowLogin || existing?.parentLogin || rowName.toLowerCase().replace(/\s+/g, ".");
 
-          // Новый ребёнок — создаём
-          if (childIdx === -1) {
-            const login = rowLogin || rowName.toLowerCase().replace(/\s+/g, ".");
-            const newC: Child = {
-              id: `import_${Date.now()}_${ri}`,
-              name: rowName,
-              parentLogin: login,
-              system: 1,
-              entries: allWeeks.map((w) => ({ week: w, score: null })),
-            };
-            updated = [...updated, newC];
-            childIdx = updated.length - 1;
-          }
-
-          // Заполняем баллы только в пустые ячейки
-          for (const { name: weekName, idx: colIdx } of weekCols) {
-            const rawVal = rows[ri][colIdx];
+          const entries = allWeeks.map((w, wi) => {
+            const rawVal = rows[ri][weekCols[wi].idx];
             const val = rawVal === "" || rawVal === undefined ? null : Number(rawVal);
-            if (val !== null && isNaN(val)) continue;
+            return { week: w, score: val !== null && !isNaN(val) ? val : null };
+          });
 
-            updated = updated.map((c, ci) => {
-              if (ci !== childIdx) return c;
-              const entries = c.entries.map((en) => {
-                if (en.week !== weekName) return en;
-                if (en.score !== null) return en; // не перезаписываем
-                return { ...en, score: val };
-              });
-              return { ...c, entries };
-            });
-          }
+          newChildren.push({
+            id,
+            name: rowName,
+            parentLogin: login,
+            system: existing?.system ?? 1,
+            entries,
+          });
         }
 
-        saveData(updated);
-        return updated;
+        saveData(newChildren);
+        return newChildren;
       });
 
       setImportOk("Таблица №1 импортирована");
@@ -557,15 +528,19 @@ function AdminView({ onBack }: { onBack: () => void }) {
       }
       if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями");
 
-      // Читаем актуальный список детей из состояния через ref-паттерн
       setChildren((prevChildren) => {
         setAttendance((prevAtt) => {
           const allWeeks = prevChildren[0]?.entries.map((e) => e.week) ?? [];
-          let updatedAtt = buildAttendance(allWeeks, prevChildren, prevAtt);
+
+          // Инициализируем чистый массив посещаемости по неделям из файла
+          const newAtt: typeof prevAtt = allWeeks.map((_, i) => ({
+            maxLessons: prevAtt[i]?.maxLessons ?? null,
+            children: {},
+          }));
 
           for (const { name: weekName, idx: colIdx } of weekCols) {
             const wi = allWeeks.indexOf(weekName);
-            if (wi === -1) continue; // неделя не существует — пропускаем
+            if (wi === -1) continue;
 
             for (let ri = 1; ri < rows.length; ri++) {
               const rowName = String(rows[ri][0]).trim();
@@ -575,31 +550,19 @@ function AdminView({ onBack }: { onBack: () => void }) {
               if (val !== null && isNaN(val)) continue;
 
               if (rowName.toLowerCase().includes("норм")) {
-                // Норма — только если пусто
-                if (updatedAtt[wi].maxLessons === null) {
-                  updatedAtt = updatedAtt.map((w, i) =>
-                    i === wi ? { ...w, maxLessons: val } : w
-                  );
-                }
+                newAtt[wi] = { ...newAtt[wi], maxLessons: val };
               } else {
                 const child = prevChildren.find(
                   (c) => c.name.toLowerCase() === rowName.toLowerCase()
                 );
                 if (!child) continue;
-                // Не перезаписываем заполненное
-                if (updatedAtt[wi].children?.[child.id] !== null &&
-                    updatedAtt[wi].children?.[child.id] !== undefined) continue;
-                updatedAtt = updatedAtt.map((w, i) =>
-                  i === wi
-                    ? { ...w, children: { ...w.children, [child.id]: val } }
-                    : w
-                );
+                newAtt[wi] = { ...newAtt[wi], children: { ...newAtt[wi].children, [child.id]: val } };
               }
             }
           }
 
-          saveAttendance(updatedAtt);
-          return updatedAtt;
+          saveAttendance(newAtt);
+          return newAtt;
         });
 
         return prevChildren;
