@@ -287,7 +287,8 @@ export default function ProgressView({ onBack }: Props) {
                             stickyStyle.zIndex = isHeaderRow ? 20 : 11;
                           }
 
-                          const baseBg = cell.bg ?? childColor ?? "transparent";
+                          const isSticky = isHeaderRow || isCol0 || isCol1;
+                          const baseBg = cell.bg ?? childColor ?? (isSticky ? "#ffffff" : "transparent");
 
                           return (
                             <td
