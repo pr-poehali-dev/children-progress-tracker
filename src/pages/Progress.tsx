@@ -166,38 +166,9 @@ export default function ProgressView({ onBack }: Props) {
     });
   };
 
-  const markBefore20Apr = () => {
-    if (!data) return;
-    const MONTHS: Record<string, number> = {
-      янв: 1, фев: 2, мар: 3, апр: 4, май: 5, июн: 6,
-      июл: 7, авг: 8, сен: 9, окт: 10, ноя: 11, дек: 12,
-    };
-    setChecked(prev => {
-      const next = new Set(prev);
-      data.children.forEach((child, ci) => {
-        child.rows.forEach((row, ri) => {
-          row.tasks.forEach((task, ti) => {
-            if (task === null) return;
-            const dateStr = data.dates[ti] ?? "";
-            const parts = dateStr.trim().split(" ");
-            if (parts.length < 2) return;
-            const day = parseInt(parts[0], 10);
-            const month = MONTHS[parts[1]];
-            if (!month) return;
-            if (month < 4 || (month === 4 && day <= 20)) {
-              next.add(`${ci}_${ri}_${ti}`);
-            }
-          });
-        });
-      });
-      saveChecked(next);
-      return next;
-    });
-  };
-
-  const COL_NAME = 130;
+  const COL_NAME = 104;
   const COL_SUBJ = 150;
-  const COL_CELL = 44;
+  const COL_CELL = 27;
   const HEADER_TOP = 0;
 
   return (
@@ -225,24 +196,15 @@ export default function ProgressView({ onBack }: Props) {
               Загрузить Excel
             </button>
             {data && (
-              <>
-                <button
-                  onClick={markBefore20Apr}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
-                >
-                  <Icon name="CalendarCheck" size={15} />
-                  До 20 апр
-                </button>
-                <button
-                  onClick={handleSave}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                    saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
-                  }`}
-                >
-                  <Icon name={saved ? "Check" : "Save"} size={15} />
-                  {saved ? "Сохранено!" : "Сохранить"}
-                </button>
-              </>
+              <button
+                onClick={handleSave}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
+                }`}
+              >
+                <Icon name={saved ? "Check" : "Save"} size={15} />
+                {saved ? "Сохранено!" : "Сохранить"}
+              </button>
             )}
           </div>
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={handleImport} />
@@ -319,7 +281,7 @@ export default function ProgressView({ onBack }: Props) {
                         padding: "6px 2px", fontSize: 10, fontWeight: 600,
                         color: "#64748b", textAlign: "center",
                         writingMode: "vertical-rl",
-                        height: 80, whiteSpace: "nowrap",
+                        height: 27, width: 27, whiteSpace: "nowrap",
                       }}>
                         {d}
                       </th>
@@ -442,7 +404,7 @@ export default function ProgressView({ onBack }: Props) {
                                   cursor: isEmpty ? "default" : "pointer",
                                   userSelect: "none",
                                   transition: "background 0.18s",
-                                  height: 38,
+                                  height: 27,
                                   padding: 0,
                                   boxShadow: isChecked ? `inset 0 4px 10px rgba(0,0,0,0.22), inset 0 1px 3px rgba(0,0,0,0.18)` : "none",
                                 }}
