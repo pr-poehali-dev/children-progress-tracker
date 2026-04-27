@@ -446,57 +446,72 @@ function AdminView({ onBack }: { onBack: () => void }) {
       const rows = await parseSheet(file);
       if (rows.length < 2) throw new Error("Таблица пустая");
 
+      // Шапка: A=имя, B=логин, C..=недели
       const headerRow = rows[0];
       const weekCols: { name: string; idx: number }[] = [];
-      for (let ci = 1; ci < headerRow.length; ci++) {
+      for (let ci = 2; ci < headerRow.length; ci++) {
         const h = String(headerRow[ci]).trim();
         if (h) weekCols.push({ name: h, idx: ci });
       }
-      if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями");
+      if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями (начиная с колонки C)");
 
       setChildren((prevChildren) => {
-        let updated = prevChildren;
+        let updated = [...prevChildren];
 
-        for (const { name: weekName, idx: colIdx } of weekCols) {
-          const existingWi = updated[0]?.entries.findIndex((en) => en.week === weekName);
+        // Собираем все недели из файла, добавляем новые которых ещё нет
+        const existingWeeks = updated[0]?.entries.map((e) => e.week) ?? [];
+        const allWeeks = [...existingWeeks];
+        for (const { name } of weekCols) {
+          if (!allWeeks.includes(name)) allWeeks.push(name);
+        }
 
-          for (let ri = 1; ri < rows.length; ri++) {
-            const rowName = String(rows[ri][0]).trim();
-            if (!rowName) continue;
+        // Синхронизируем записи всех существующих детей под новый список недель
+        updated = updated.map((c) => {
+          const newEntries = allWeeks.map((w) => {
+            const ex = c.entries.find((en) => en.week === w);
+            return ex ?? { week: w, score: null };
+          });
+          return { ...c, entries: newEntries };
+        });
+
+        // Обрабатываем строки файла
+        for (let ri = 1; ri < rows.length; ri++) {
+          const rowName = String(rows[ri][0]).trim();
+          const rowLogin = String(rows[ri][1]).trim().toLowerCase();
+          if (!rowName) continue;
+
+          let childIdx = updated.findIndex(
+            (c) => c.name.toLowerCase() === rowName.toLowerCase()
+          );
+
+          // Новый ребёнок — создаём
+          if (childIdx === -1) {
+            const login = rowLogin || rowName.toLowerCase().replace(/\s+/g, ".");
+            const newC: Child = {
+              id: `import_${Date.now()}_${ri}`,
+              name: rowName,
+              parentLogin: login,
+              system: 1,
+              entries: allWeeks.map((w) => ({ week: w, score: null })),
+            };
+            updated = [...updated, newC];
+            childIdx = updated.length - 1;
+          }
+
+          // Заполняем баллы только в пустые ячейки
+          for (const { name: weekName, idx: colIdx } of weekCols) {
             const rawVal = rows[ri][colIdx];
             const val = rawVal === "" || rawVal === undefined ? null : Number(rawVal);
             if (val !== null && isNaN(val)) continue;
 
-            const childIdx = updated.findIndex(
-              (c) => c.name.toLowerCase() === rowName.toLowerCase()
-            );
-            if (childIdx === -1) continue;
-
-            if (existingWi !== -1 && existingWi !== undefined) {
-              updated = updated.map((c, ci) => {
-                if (ci !== childIdx) return c;
-                const entries = c.entries.map((en, wi) => {
-                  if (wi !== existingWi) return en;
-                  if (en.score !== null) return en;
-                  return { ...en, score: val };
-                });
-                return { ...c, entries };
+            updated = updated.map((c, ci) => {
+              if (ci !== childIdx) return c;
+              const entries = c.entries.map((en) => {
+                if (en.week !== weekName) return en;
+                if (en.score !== null) return en; // не перезаписываем
+                return { ...en, score: val };
               });
-            } else {
-              updated = updated.map((c, ci) => {
-                if (ci !== childIdx) return c;
-                const entries = [...c.entries, { week: weekName, score: val }];
-                return { ...c, entries };
-              });
-            }
-          }
-
-          if (existingWi === -1 || existingWi === undefined) {
-            updated = updated.map((c) => {
-              if (c.entries[c.entries.length - 1]?.week !== weekName) {
-                return { ...c, entries: [...c.entries, { week: weekName, score: null }] };
-              }
-              return c;
+              return { ...c, entries };
             });
           }
         }
@@ -521,6 +536,7 @@ function AdminView({ onBack }: { onBack: () => void }) {
       const rows = await parseSheet(file);
       if (rows.length < 2) throw new Error("Таблица пустая");
 
+      // Шапка: A=ученик/норма, B..=недели
       const headerRow = rows[0];
       const weekCols: { name: string; idx: number }[] = [];
       for (let ci = 1; ci < headerRow.length; ci++) {
@@ -529,26 +545,25 @@ function AdminView({ onBack }: { onBack: () => void }) {
       }
       if (weekCols.length === 0) throw new Error("Не найдены колонки с неделями");
 
+      // Читаем актуальный список детей из состояния через ref-паттерн
       setChildren((prevChildren) => {
         setAttendance((prevAtt) => {
-          let updatedAtt = [...prevAtt];
+          const allWeeks = prevChildren[0]?.entries.map((e) => e.week) ?? [];
+          let updatedAtt = buildAttendance(allWeeks, prevChildren, prevAtt);
 
           for (const { name: weekName, idx: colIdx } of weekCols) {
-            let wi = prevChildren[0]?.entries.findIndex((en) => en.week === weekName);
-            if (wi === -1 || wi === undefined) wi = updatedAtt.length;
-
-            while (updatedAtt.length <= wi) {
-              updatedAtt = [...updatedAtt, { maxLessons: null, children: {} }];
-            }
+            const wi = allWeeks.indexOf(weekName);
+            if (wi === -1) continue; // неделя не существует — пропускаем
 
             for (let ri = 1; ri < rows.length; ri++) {
-              const rowName = String(rows[ri][0]).trim().toLowerCase();
+              const rowName = String(rows[ri][0]).trim();
               if (!rowName) continue;
               const rawVal = rows[ri][colIdx];
               const val = rawVal === "" || rawVal === undefined ? null : Number(rawVal);
               if (val !== null && isNaN(val)) continue;
 
-              if (rowName.includes("норм")) {
+              if (rowName.toLowerCase().includes("норм")) {
+                // Норма — только если пусто
                 if (updatedAtt[wi].maxLessons === null) {
                   updatedAtt = updatedAtt.map((w, i) =>
                     i === wi ? { ...w, maxLessons: val } : w
@@ -556,9 +571,10 @@ function AdminView({ onBack }: { onBack: () => void }) {
                 }
               } else {
                 const child = prevChildren.find(
-                  (c) => c.name.toLowerCase() === rowName
+                  (c) => c.name.toLowerCase() === rowName.toLowerCase()
                 );
                 if (!child) continue;
+                // Не перезаписываем заполненное
                 if (updatedAtt[wi].children?.[child.id] !== null &&
                     updatedAtt[wi].children?.[child.id] !== undefined) continue;
                 updatedAtt = updatedAtt.map((w, i) =>
