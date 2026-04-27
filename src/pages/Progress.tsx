@@ -322,9 +322,9 @@ export default function ProgressView({ onBack }: Props) {
                           const cellKey = `${ri}_${ci}`;
                           const isChecked = checked.has(cellKey);
 
-                          // Приоритет фона: отмечена → checked-цвет; иначе цвет из Excel; иначе чередование/белый
+                          // Отмеченное состояние всегда перекрывает Excel-цвет
                           let bg: string;
-                          if (isChecked && isClickable) {
+                          if (isChecked) {
                             bg = CHILD_CHECKED[childIdx % 2];
                           } else if (cell.bg) {
                             bg = cell.bg;
