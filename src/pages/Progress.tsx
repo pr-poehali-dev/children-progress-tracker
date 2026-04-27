@@ -390,8 +390,8 @@ export default function ProgressView({ onBack }: Props) {
                             return (
                               <td
                                 key={ti}
-                                onClick={isEmpty ? undefined : () => toggleCell(key)}
-                                title={isEmpty ? "" : isChecked ? "Снять отметку" : "Отметить выполненным"}
+                                onClick={() => toggleCell(key)}
+                                title={isChecked ? "Снять отметку" : "Отметить выполненным"}
                                 style={{
                                   borderBottom: groupBorder,
                                   borderRight: "1px solid #c5d3e8",
@@ -401,7 +401,7 @@ export default function ProgressView({ onBack }: Props) {
                                   fontSize: big ? 14 : 9,
                                   fontWeight: big ? 800 : 400,
                                   color: isChecked ? "#fff" : isEmpty ? "#c4cdd8" : big ? "#1e293b" : "#94a3b8",
-                                  cursor: isEmpty ? "default" : "pointer",
+                                  cursor: "pointer",
                                   userSelect: "none",
                                   transition: "background 0.18s",
                                   height: 27,
