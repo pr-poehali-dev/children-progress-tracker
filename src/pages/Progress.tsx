@@ -92,7 +92,9 @@ const CHILD_BG   = ["#f0f9ff", "#f0fdf4"];
 const CHECKED_BG = ["#38bdf8", "#4ade80"];
 const SUBJ_BG    = ["#e0f2fe", "#dcfce7"];
 
-const STORAGE_KEY = "progress_checked_v2";
+const STORAGE_KEY        = "progress_checked_v2";
+const STORAGE_DATA_KEY   = "progress_data_v2";
+const STORAGE_FNAME_KEY  = "progress_filename_v2";
 
 function loadChecked(): Set<string> {
   try {
@@ -104,6 +106,18 @@ function loadChecked(): Set<string> {
 function saveChecked(s: Set<string>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...s]));
 }
+function loadData(): { data: ProgressData | null; fileName: string } {
+  try {
+    const raw = localStorage.getItem(STORAGE_DATA_KEY);
+    const fn  = localStorage.getItem(STORAGE_FNAME_KEY) ?? "";
+    if (raw) return { data: JSON.parse(raw) as ProgressData, fileName: fn };
+  } catch { /* ignore */ }
+  return { data: null, fileName: "" };
+}
+function persistData(data: ProgressData, fileName: string) {
+  localStorage.setItem(STORAGE_DATA_KEY, JSON.stringify(data));
+  localStorage.setItem(STORAGE_FNAME_KEY, fileName);
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -113,10 +127,11 @@ interface Props {
 
 export default function ProgressView({ onBack }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [data, setData] = useState<ProgressData | null>(null);
-  const [fileName, setFileName] = useState("");
+  const [data, setData] = useState<ProgressData | null>(() => loadData().data);
+  const [fileName, setFileName] = useState<string>(() => loadData().fileName);
   const [error, setError] = useState("");
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
+  const [saved, setSaved] = useState(false);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -125,12 +140,21 @@ export default function ProgressView({ onBack }: Props) {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array", cellStyles: true });
-      setData(parseProgress(wb.Sheets[wb.SheetNames[0]]));
+      const parsed = parseProgress(wb.Sheets[wb.SheetNames[0]]);
+      setData(parsed);
       setFileName(file.name);
+      setSaved(false);
     } catch {
       setError("Не удалось прочитать файл. Убедитесь, что это файл .xlsx");
     }
     e.target.value = "";
+  };
+
+  const handleSave = () => {
+    if (!data) return;
+    persistData(data, fileName);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   const toggleCell = (key: string) => {
@@ -163,13 +187,26 @@ export default function ProgressView({ onBack }: Props) {
               </span>
             )}
           </div>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors"
-          >
-            <Icon name="Upload" size={15} />
-            Загрузить Excel
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors"
+            >
+              <Icon name="Upload" size={15} />
+              Загрузить Excel
+            </button>
+            {data && (
+              <button
+                onClick={handleSave}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
+                }`}
+              >
+                <Icon name={saved ? "Check" : "Save"} size={15} />
+                {saved ? "Сохранено!" : "Сохранить"}
+              </button>
+            )}
+          </div>
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={handleImport} />
         </div>
       </header>
