@@ -303,6 +303,24 @@ export default function ProgressView({ onBack }: Props) {
                       const isLastRow = ri === child.rows.length - 1;
                       const groupBorder = isLastRow && !isLast ? "2px solid #cbd5e1" : "1px solid #e8edf2";
 
+                      // Для каждой ячейки определяем: большая или маленькая
+                      // Большая = уникальное значение в строке ИЛИ последнее вхождение повторяющегося
+                      const lastIndexOf = new Map<string, number>();
+                      const countOf = new Map<string, number>();
+                      row.tasks.forEach((t) => {
+                        if (t === null) return;
+                        countOf.set(t, (countOf.get(t) ?? 0) + 1);
+                      });
+                      row.tasks.forEach((t, idx) => {
+                        if (t !== null) lastIndexOf.set(t, idx);
+                      });
+                      const isBig = (task: string | null, ti: number): boolean => {
+                        if (task === null) return false;
+                        const count = countOf.get(task) ?? 1;
+                        if (count === 1) return true; // уникальное
+                        return lastIndexOf.get(task) === ti; // последнее из повторяющихся
+                      };
+
                       return (
                         <tr key={`${ci}_${ri}`}>
                           {ri === 0 && (
@@ -368,6 +386,7 @@ export default function ProgressView({ onBack }: Props) {
                             const key = `${ci}_${ri}_${ti}`;
                             const isChecked = checked.has(key);
                             const isEmpty = task === null;
+                            const big = isBig(task, ti);
                             return (
                               <td
                                 key={ti}
@@ -383,12 +402,12 @@ export default function ProgressView({ onBack }: Props) {
                                       : childBg,
                                   textAlign: "center",
                                   verticalAlign: "middle",
-                                  fontSize: 11,
-                                  fontWeight: isChecked ? 800 : 400,
-                                  color: isChecked ? "#fff" : isEmpty ? "#c4cdd8" : "#475569",
+                                  fontSize: big ? 14 : 9,
+                                  fontWeight: big ? 800 : 400,
+                                  color: isChecked ? "#fff" : isEmpty ? "#c4cdd8" : big ? "#1e293b" : "#94a3b8",
                                   cursor: isEmpty ? "default" : "pointer",
                                   userSelect: "none",
-                                  transition: "background 0.18s, transform 0.1s",
+                                  transition: "background 0.18s",
                                   height: 38,
                                   padding: 0,
                                   boxShadow: isChecked ? `inset 0 -2px 4px rgba(0,0,0,0.12)` : "none",
