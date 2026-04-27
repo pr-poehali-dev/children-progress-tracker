@@ -281,7 +281,7 @@ export default function ProgressView({ onBack }: Props) {
                         padding: "6px 2px", fontSize: 10, fontWeight: 600,
                         color: "#64748b", textAlign: "center",
                         writingMode: "vertical-rl",
-                        height: 27, width: 27, whiteSpace: "nowrap",
+                        height: 90, width: 27, whiteSpace: "nowrap",
                       }}>
                         {d}
                       </th>
