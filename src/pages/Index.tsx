@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import * as XLSX from "xlsx";
+import ProgressView from "@/pages/Progress";
 
 type IconName = string;
 
@@ -1058,10 +1059,11 @@ function ParentView({ onBack }: { onBack: () => void }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Index() {
-  const [view, setView] = useState<"home" | "admin" | "parent">("home");
+  const [view, setView] = useState<"home" | "admin" | "parent" | "progress">("home");
 
   if (view === "admin") return <AdminView onBack={() => setView("home")} />;
   if (view === "parent") return <ParentView onBack={() => setView("home")} />;
+  if (view === "progress") return <ProgressView onBack={() => setView("home")} />;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center px-4 py-12">
@@ -1076,7 +1078,7 @@ export default function Index() {
         <p className="text-muted-foreground">Система учёта баллов</p>
       </div>
 
-      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
         {[
           {
             key: "admin" as const,
@@ -1095,6 +1097,15 @@ export default function Index() {
             color: "from-violet-100 to-violet-50",
             accent: "bg-violet-500 hover:bg-violet-600",
             delay: "0.25s",
+          },
+          {
+            key: "progress" as const,
+            emoji: "📊",
+            title: "Прогресс",
+            desc: "Таблица прогресса по обучению из Excel",
+            color: "from-orange-100 to-orange-50",
+            accent: "bg-orange-500 hover:bg-orange-600",
+            delay: "0.35s",
           },
         ].map((r) => (
           <button
