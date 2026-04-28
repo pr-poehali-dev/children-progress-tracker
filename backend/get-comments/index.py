@@ -12,7 +12,8 @@ HEADERS = {
 }
 
 def handler(event: dict, context) -> dict:
-    """Возвращает список комментариев для указанного ребёнка (child_id), новые сверху."""
+    """Возвращает комментарии для child_id + общие школьные (__school__), новые сверху.
+    Если child_id == '__school__' — только школьные."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": HEADERS, "body": ""}
 
@@ -22,16 +23,30 @@ def handler(event: dict, context) -> dict:
 
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
-    cur.execute(
-        f"SELECT id, child_id, text, created_at, author FROM {SCHEMA}.comments WHERE child_id = %s ORDER BY created_at DESC",
-        (child_id,)
-    )
+
+    if child_id == "__school__":
+        cur.execute(
+            f"SELECT id, child_id, text, created_at, author, image_urls FROM {SCHEMA}.comments WHERE child_id = '__school__' ORDER BY created_at DESC"
+        )
+    else:
+        cur.execute(
+            f"SELECT id, child_id, text, created_at, author, image_urls FROM {SCHEMA}.comments WHERE child_id = %s OR child_id = '__school__' ORDER BY created_at DESC",
+            (child_id,)
+        )
+
     rows = cur.fetchall()
     cur.close()
     conn.close()
 
     comments = [
-        {"id": r[0], "child_id": r[1], "text": r[2], "created_at": r[3].isoformat(), "author": r[4]}
+        {
+            "id": r[0],
+            "child_id": r[1],
+            "text": r[2],
+            "created_at": r[3].isoformat(),
+            "author": r[4],
+            "image_urls": r[5] if r[5] else [],
+        }
         for r in rows
     ]
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"comments": comments})}

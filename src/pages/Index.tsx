@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import * as XLSX from "xlsx";
 import ProgressView from "@/pages/Progress";
@@ -999,8 +999,6 @@ function ParentView({ onBack }: { onBack: () => void }) {
   const [attendanceData] = useState<WeekAttendance[]>(loadAttendance);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [parentText, setParentText] = useState("");
-  const [parentSaving, setParentSaving] = useState(false);
 
   const loadParentComments = async (childId: string) => {
     setCommentsLoading(true);
@@ -1013,29 +1011,23 @@ function ParentView({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleParentSend = async () => {
-    if (!parentText.trim() || !child) return;
-    setParentSaving(true);
-    const savedText = parentText.trim();
-    setParentText("");
-    try {
-      const res = await fetch(SAVE_COMMENT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ child_id: child.id, text: savedText, author: "parent" }),
-      });
-      const data = await res.json();
-      const newComment: Comment = {
-        id: data.id,
-        child_id: child.id,
-        text: savedText,
-        created_at: data.created_at ?? new Date().toISOString(),
-        author: "parent",
-      };
-      setComments((prev) => [newComment, ...prev]);
-    } finally {
-      setParentSaving(false);
-    }
+  const handleParentSend = async (savedText: string) => {
+    if (!savedText || !child) return;
+    const res = await fetch(SAVE_COMMENT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ child_id: child.id, text: savedText, author: "parent" }),
+    });
+    const data = await res.json();
+    const newComment: Comment = {
+      id: data.id,
+      child_id: child.id,
+      text: savedText,
+      created_at: data.created_at ?? new Date().toISOString(),
+      author: "parent",
+      image_urls: [],
+    };
+    setComments((prev) => [newComment, ...prev]);
   };
 
   const handleLogin = () => {
@@ -1120,23 +1112,13 @@ function ParentView({ onBack }: { onBack: () => void }) {
           </h3>
 
           {/* Форма родителя */}
-          <div className="space-y-2 mb-5">
-            <textarea
-              value={parentText}
-              onChange={(e) => setParentText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleParentSend(); }}
+          <div className="mb-5">
+            <CommentForm
               placeholder="Написать сообщение… (Ctrl+Enter — отправить)"
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-all resize-none"
+              onSend={async (text) => handleParentSend(text)}
+              accentClass="bg-violet-500 hover:bg-violet-600"
+              focusClass="focus:border-violet-400 focus:ring-violet-200"
             />
-            <button
-              onClick={handleParentSend}
-              disabled={parentSaving || !parentText.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              <Icon name={parentSaving ? "Loader2" : "Send"} size={15} />
-              {parentSaving ? "Отправляю…" : "Отправить"}
-            </button>
           </div>
 
           {/* Лента */}
@@ -1151,20 +1133,20 @@ function ParentView({ onBack }: { onBack: () => void }) {
             <div className="space-y-3">
               {comments.map((c) => {
                 const isParent = c.author === "parent";
+                const isSchool = c.child_id === "__school__";
                 return (
                   <div
                     key={c.id}
-                    className={`rounded-xl px-4 py-3 border ${isParent ? "bg-violet-50 border-violet-200 ml-6" : "bg-slate-50 border-border"}`}
+                    className={`rounded-xl px-4 py-3 border ${isParent ? "bg-violet-50 border-violet-200 ml-6" : isSchool ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-border"}`}
                   >
                     <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: isParent ? "#7c3aed" : "#64748b" }}>
-                        {isParent ? "Родитель" : "Администратор"}
+                      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: isParent ? "#7c3aed" : isSchool ? "#b45309" : "#64748b" }}>
+                        {isParent ? "Вы" : isSchool ? "🏫 Для всей школы" : "Администратор"}
                       </span>
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
-                    <p className="text-[11px] text-muted-foreground mt-1.5">
-                      {new Date(c.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "")}
-                    </p>
+                    {c.text && <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>}
+                    <CommentImages urls={c.image_urls} />
+                    <p className="text-[11px] text-muted-foreground mt-1.5">{fmtDate(c.created_at)}</p>
                   </div>
                 );
               })}
@@ -1180,6 +1162,7 @@ function ParentView({ onBack }: { onBack: () => void }) {
 const GET_COMMENTS_URL = "https://functions.poehali.dev/2115d774-b0b9-4412-bcae-78b0f8bcb563";
 const SAVE_COMMENT_URL = "https://functions.poehali.dev/86719a99-e955-46c3-a4f0-3110732c4ed9";
 const DELETE_COMMENT_URL = "https://functions.poehali.dev/90a6388b-783b-4bc4-9811-3eb26fddd21c";
+const UPLOAD_IMAGE_URL = "https://functions.poehali.dev/4aac4414-45eb-493f-a6ad-482423971512";
 
 interface Comment {
   id: number;
@@ -1187,111 +1170,281 @@ interface Comment {
   text: string;
   created_at: string;
   author: "admin" | "parent";
+  image_urls: string[];
 }
 
-function CommentsView({ onBack }: { onBack: () => void }) {
-  const children = loadData();
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(false);
+async function uploadImages(files: File[]): Promise<string[]> {
+  const images = await Promise.all(
+    files.map(
+      (f) =>
+        new Promise<{ name: string; data: string }>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const b64 = (reader.result as string).split(",")[1];
+            resolve({ name: f.name, data: b64 });
+          };
+          reader.readAsDataURL(f);
+        })
+    )
+  );
+  const res = await fetch(UPLOAD_IMAGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ images }),
+  });
+  const data = await res.json();
+  return data.urls ?? [];
+}
+
+function CommentImages({ urls }: { urls: string[] }) {
+  if (!urls || urls.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {urls.map((url, i) => (
+        <a key={i} href={url} target="_blank" rel="noreferrer">
+          <img
+            src={url}
+            alt=""
+            className="h-20 w-20 object-cover rounded-lg border border-border hover:opacity-90 transition-opacity"
+          />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function CommentForm({
+  placeholder,
+  onSend,
+  accentClass = "bg-emerald-500 hover:bg-emerald-600",
+  focusClass = "focus:border-emerald-400 focus:ring-emerald-200",
+  withImages = false,
+}: {
+  placeholder: string;
+  onSend: (text: string, imageUrls: string[]) => Promise<void>;
+  accentClass?: string;
+  focusClass?: string;
+  withImages?: boolean;
+}) {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<number | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const loadComments = async (childId: string) => {
-    setLoading(true);
-    setComments([]);
-    try {
-      const res = await fetch(`${GET_COMMENTS_URL}?child_id=${encodeURIComponent(childId)}`);
-      const data = await res.json();
-      setComments(data.comments ?? []);
-    } finally {
-      setLoading(false);
-    }
+  const handleFiles = (chosen: FileList | null) => {
+    if (!chosen) return;
+    const arr = Array.from(chosen).slice(0, 10);
+    setFiles((prev) => [...prev, ...arr].slice(0, 10));
+    arr.forEach((f) => {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreviews((prev) => [...prev, e.target?.result as string].slice(0, 10));
+      reader.readAsDataURL(f);
+    });
   };
 
-  const handleToggle = (childId: string) => {
-    if (openId === childId) {
-      setOpenId(null);
-      setComments([]);
-      setText("");
-    } else {
-      setOpenId(childId);
-      setText("");
-      loadComments(childId);
-      setTimeout(() => textareaRef.current?.focus(), 100);
-    }
+  const removeFile = (i: number) => {
+    setFiles((prev) => prev.filter((_, idx) => idx !== i));
+    setPreviews((prev) => prev.filter((_, idx) => idx !== i));
   };
 
-  const handleSave = async () => {
-    if (!text.trim() || !openId) return;
+  const handleSend = async () => {
+    if (!text.trim() && files.length === 0) return;
     setSaving(true);
-    const savedText = text.trim();
-    setText("");
     try {
-      const res = await fetch(SAVE_COMMENT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ child_id: openId, text: savedText, author: "admin" }),
-      });
-      const data = await res.json();
-      const newComment: Comment = {
-        id: data.id,
-        child_id: openId,
-        text: savedText,
-        created_at: data.created_at ?? new Date().toISOString(),
-        author: "admin",
-      };
-      setComments((prev) => [newComment, ...prev]);
-      textareaRef.current?.focus();
+      let imageUrls: string[] = [];
+      if (files.length > 0) imageUrls = await uploadImages(files);
+      await onSend(text.trim(), imageUrls);
+      setText("");
+      setFiles([]);
+      setPreviews([]);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEditStart = (c: Comment) => {
-    setEditingId(c.id);
-    setEditText(c.text);
+  return (
+    <div className="space-y-2">
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSend(); }}
+        placeholder={placeholder}
+        rows={3}
+        className={`w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:ring-1 transition-all resize-none ${focusClass}`}
+      />
+      {previews.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {previews.map((src, i) => (
+            <div key={i} className="relative">
+              <img src={src} alt="" className="h-16 w-16 object-cover rounded-lg border border-border" />
+              <button
+                onClick={() => removeFile(i)}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleSend}
+          disabled={saving || (!text.trim() && files.length === 0)}
+          className={`flex items-center gap-2 px-4 py-2 ${accentClass} disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors`}
+        >
+          <Icon name={saving ? "Loader2" : "Send"} size={15} />
+          {saving ? "Отправляю…" : "Отправить"}
+        </button>
+        {withImages && (
+          <>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors border border-border"
+            >
+              <Icon name="ImagePlus" size={15} />
+              Фото
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "");
+
+function AdminCommentThread({
+  childId,
+  bgColor = "bg-slate-50",
+}: {
+  childId: string;
+  bgColor?: string;
+}) {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${GET_COMMENTS_URL}?child_id=${encodeURIComponent(childId)}`)
+      .then((r) => r.json())
+      .then((d) => setComments(d.comments ?? []))
+      .finally(() => setLoading(false));
+  }, [childId]);
+
+  const handleSend = async (text: string, imageUrls: string[]) => {
+    const res = await fetch(SAVE_COMMENT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ child_id: childId, text, author: "admin", image_urls: imageUrls }),
+    });
+    const data = await res.json();
+    setComments((prev) => [
+      { id: data.id, child_id: childId, text, created_at: data.created_at ?? new Date().toISOString(), author: "admin", image_urls: imageUrls },
+      ...prev,
+    ]);
   };
 
   const handleEditSave = async (id: number) => {
     if (!editText.trim()) return;
     setEditSaving(true);
     try {
-      await fetch(SAVE_COMMENT_URL, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, text: editText.trim() }),
-      });
-      setComments((prev) => prev.map((c) => c.id === id ? { ...c, text: editText.trim() } : c));
+      await fetch(SAVE_COMMENT_URL, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, text: editText.trim() }) });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, text: editText.trim() } : c)));
       setEditingId(null);
-    } finally {
-      setEditSaving(false);
-    }
+    } finally { setEditSaving(false); }
   };
 
   const handleDelete = async (id: number) => {
     setDeleting(id);
     try {
-      await fetch(DELETE_COMMENT_URL, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
+      await fetch(DELETE_COMMENT_URL, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       setComments((prev) => prev.filter((c) => c.id !== id));
-    } finally {
-      setDeleting(null);
-    }
+    } finally { setDeleting(null); }
   };
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "");
-  };
+  return (
+    <div className="border-t border-border px-5 pb-5 pt-4 space-y-4">
+      <CommentForm
+        placeholder="Написать комментарий… (Ctrl+Enter — отправить)"
+        onSend={handleSend}
+        withImages
+      />
+      {loading ? (
+        <div className="flex items-center justify-center py-4 text-muted-foreground text-sm gap-2">
+          <Icon name="Loader2" size={16} /> Загружаю…
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2 text-center">Комментариев пока нет</p>
+      ) : (
+        <div className="space-y-3">
+          {comments.map((c) => (
+            <div
+              key={c.id}
+              className={`group relative rounded-xl px-4 py-3 border ${c.author === "parent" ? "bg-violet-50 border-violet-200 ml-4" : `${bgColor} border-border`}`}
+            >
+              {editingId === c.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    autoFocus
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleEditSave(c.id); if (e.key === "Escape") setEditingId(null); }}
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-lg border border-emerald-300 text-sm outline-none focus:ring-1 focus:ring-emerald-200 resize-none bg-white"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => handleEditSave(c.id)} disabled={editSaving || !editText.trim()} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
+                      <Icon name={editSaving ? "Loader2" : "Check"} size={12} />
+                      {editSaving ? "Сохраняю…" : "Сохранить"}
+                    </button>
+                    <button onClick={() => setEditingId(null)} className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-lg hover:bg-slate-200 transition-colors">Отмена</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {c.author === "parent" && <span className="text-[10px] font-bold uppercase tracking-wide text-violet-500 block mb-1">Родитель</span>}
+                  {c.text && <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>}
+                  <CommentImages urls={c.image_urls} />
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-[11px] text-muted-foreground">{fmtDate(c.created_at)}</span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      {c.author !== "parent" && (
+                        <button onClick={() => { setEditingId(c.id); setEditText(c.text); }} className="text-slate-400 hover:text-blue-500 p-1 rounded-lg hover:bg-blue-50 transition-colors">
+                          <Icon name="Pencil" size={13} />
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(c.id)} disabled={deleting === c.id} className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors">
+                        <Icon name={deleting === c.id ? "Loader2" : "Trash2"} size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentsView({ onBack }: { onBack: () => void }) {
+  const children = loadData();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [schoolOpen, setSchoolOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -1306,13 +1459,33 @@ function CommentsView({ onBack }: { onBack: () => void }) {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-2">
+        {/* Общие комментарии по школе */}
+        <div className="bg-amber-50 rounded-2xl soft-shadow overflow-hidden border border-amber-200">
+          <button
+            onClick={() => setSchoolOpen((p) => !p)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-100/60 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-200 flex items-center justify-center flex-shrink-0">
+                <span className="text-base">🏫</span>
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-foreground text-sm leading-tight">Общие комментарии по школе</p>
+                <p className="text-[11px] text-muted-foreground">Видны всем родителям</p>
+              </div>
+            </div>
+            <Icon name={schoolOpen ? "ChevronUp" : "ChevronDown"} size={18} className="text-muted-foreground flex-shrink-0" />
+          </button>
+          {schoolOpen && <AdminCommentThread childId="__school__" bgColor="bg-amber-50" />}
+        </div>
+
+        {/* Список детей */}
         {children.map((child) => {
           const isOpen = openId === child.id;
           return (
             <div key={child.id} className="bg-white rounded-2xl soft-shadow overflow-hidden">
-              {/* Имя ребёнка — кнопка */}
               <button
-                onClick={() => handleToggle(child.id)}
+                onClick={() => setOpenId(isOpen ? null : child.id)}
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -1324,116 +1497,9 @@ function CommentsView({ onBack }: { onBack: () => void }) {
                     <p className="text-[11px] text-muted-foreground">@{child.parentLogin}</p>
                   </div>
                 </div>
-                <Icon
-                  name={isOpen ? "ChevronUp" : "ChevronDown"}
-                  size={18}
-                  className="text-muted-foreground flex-shrink-0"
-                />
+                <Icon name={isOpen ? "ChevronUp" : "ChevronDown"} size={18} className="text-muted-foreground flex-shrink-0" />
               </button>
-
-              {/* Раскрытая лента */}
-              {isOpen && (
-                <div className="border-t border-border px-5 pb-5 pt-4 space-y-4">
-                  {/* Поле ввода нового комментария */}
-                  <div className="space-y-2">
-                    <textarea
-                      ref={textareaRef}
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSave();
-                      }}
-                      placeholder="Написать комментарий… (Ctrl+Enter — отправить)"
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all resize-none"
-                    />
-                    <button
-                      onClick={handleSave}
-                      disabled={saving || !text.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
-                    >
-                      <Icon name={saving ? "Loader2" : "Send"} size={15} />
-                      {saving ? "Сохраняю…" : "Отправить"}
-                    </button>
-                  </div>
-
-                  {/* Лента комментариев */}
-                  {loading ? (
-                    <div className="flex items-center justify-center py-6 text-muted-foreground text-sm gap-2">
-                      <Icon name="Loader2" size={16} />
-                      Загружаю…
-                    </div>
-                  ) : comments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-3 text-center">Комментариев пока нет</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {comments.map((c) => (
-                        <div
-                          key={c.id}
-                          className={`group relative rounded-xl px-4 py-3 border ${c.author === "parent" ? "bg-violet-50 border-violet-200 ml-4" : "bg-slate-50 border-border"}`}
-                        >
-                          {editingId === c.id ? (
-                            <div className="space-y-2">
-                              <textarea
-                                autoFocus
-                                value={editText}
-                                onChange={(e) => setEditText(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleEditSave(c.id);
-                                  if (e.key === "Escape") setEditingId(null);
-                                }}
-                                rows={3}
-                                className="w-full px-3 py-2 rounded-lg border border-emerald-300 text-sm outline-none focus:ring-1 focus:ring-emerald-200 transition-all resize-none bg-white"
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleEditSave(c.id)}
-                                  disabled={editSaving || !editText.trim()}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
-                                >
-                                  <Icon name={editSaving ? "Loader2" : "Check"} size={12} />
-                                  {editSaving ? "Сохраняю…" : "Сохранить"}
-                                </button>
-                                <button
-                                  onClick={() => setEditingId(null)}
-                                  className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-lg hover:bg-slate-200 transition-colors"
-                                >
-                                  Отмена
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              {c.author === "parent" && (
-                                <span className="text-[10px] font-bold uppercase tracking-wide text-violet-500 block mb-1">Родитель</span>
-                              )}
-                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
-                              <div className="flex items-center justify-between mt-2">
-                                <span className="text-[11px] text-muted-foreground">{formatDate(c.created_at)}</span>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                  <button
-                                    onClick={() => handleEditStart(c)}
-                                    className="text-slate-400 hover:text-blue-500 p-1 rounded-lg hover:bg-blue-50 transition-colors"
-                                  >
-                                    <Icon name="Pencil" size={13} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(c.id)}
-                                    disabled={deleting === c.id}
-                                    className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
-                                  >
-                                    <Icon name={deleting === c.id ? "Loader2" : "Trash2"} size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              {isOpen && <AdminCommentThread childId={child.id} />}
             </div>
           );
         })}
