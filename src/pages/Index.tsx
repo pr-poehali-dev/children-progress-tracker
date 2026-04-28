@@ -1554,8 +1554,10 @@ function LoginScreen({ onAdmin, onParent }: { onAdmin: () => void; onParent: (lo
 
       <div className="relative z-10 w-full max-w-sm" style={{ animation: "fadeIn 0.5s ease-out both" }}>
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl soft-shadow-lg mb-5 text-4xl">🏫</div>
-          <h1 className="text-3xl font-bold text-foreground mb-1">ШколаПро</h1>
+          <div className="inline-flex items-center justify-center mb-5">
+            <img src="https://cdn.poehali.dev/files/51dffb6d-5e9b-431b-a5b1-295ea69e3520.png" alt="Able Kids" className="w-24 h-24 object-contain" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-1">Able Kids</h1>
           <p className="text-muted-foreground text-sm">Введите свой логин для входа</p>
         </div>
 
