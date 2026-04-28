@@ -22,6 +22,12 @@ interface Child {
   entries: WeekEntry[];
 }
 
+// attendance[weekIndex] = { maxLessons: number, children: { [childId]: number | null } }
+interface WeekAttendance {
+  maxLessons: number | null;
+  children: Record<string, number | null>;
+}
+
 function getBarColor(score: number, system: System, prevScore: number | null): string {
   if (system === 1) {
     if (score <= 109) return "#bb393b";
@@ -48,122 +54,49 @@ function adjustColor(hex: string, factor: number) {
   return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
 }
 
-// ─── Initial demo data ────────────────────────────────────────────────────────
-const INITIAL_CHILDREN: Child[] = [
-  {
-    id: "1",
-    name: "Король Улына",
-    parentLogin: "korol",
-    system: 1,
-    entries: [
-      { week: "08 сент", score: 203 },
-      { week: "15 сент", score: 228 },
-      { week: "22 сент", score: 203 },
-      { week: "29 сент", score: 203 },
-      { week: "06 окт", score: 215 },
-      { week: "13 окт", score: 191 },
-      { week: "20 окт", score: 218 },
-      { week: "27 окт", score: 210 },
-      { week: "03 ноя", score: 97 },
-      { week: "10 ноя", score: null },
-      { week: "17 ноя", score: 165 },
-    ],
-  },
-  {
-    id: "2",
-    name: "Омарова Сара",
-    parentLogin: "omarova",
-    system: 1,
-    entries: [
-      { week: "08 сент", score: 190 },
-      { week: "15 сент", score: 228 },
-      { week: "22 сент", score: 215 },
-      { week: "29 сент", score: 203 },
-      { week: "06 окт", score: 238 },
-      { week: "13 окт", score: 210 },
-      { week: "20 окт", score: 216 },
-      { week: "27 окт", score: 192 },
-      { week: "03 ноя", score: 0 },
-      { week: "10 ноя", score: null },
-      { week: "17 ноя", score: 168 },
-    ],
-  },
-  {
-    id: "3",
-    name: "Потапова Элина",
-    parentLogin: "potapova",
-    system: 1,
-    entries: [
-      { week: "08 сент", score: 150 },
-      { week: "15 сент", score: 168 },
-      { week: "22 сент", score: 94 },
-      { week: "29 сент", score: 145 },
-      { week: "06 окт", score: 161 },
-      { week: "13 окт", score: 128 },
-      { week: "20 окт", score: 63 },
-      { week: "27 окт", score: 121 },
-      { week: "03 ноя", score: 60 },
-      { week: "10 ноя", score: null },
-      { week: "17 ноя", score: 129 },
-    ],
-  },
-  {
-    id: "4",
-    name: "Романов Матфей",
-    parentLogin: "romanov",
-    system: 1,
-    entries: [
-      { week: "08 сент", score: 84 },
-      { week: "15 сент", score: 89 },
-      { week: "22 сент", score: 33 },
-      { week: "29 сент", score: 51 },
-      { week: "06 окт", score: 72 },
-      { week: "13 окт", score: 58 },
-      { week: "20 окт", score: 19 },
-      { week: "27 окт", score: 39 },
-      { week: "03 ноя", score: 12 },
-      { week: "10 ноя", score: null },
-      { week: "17 ноя", score: 38 },
-    ],
-  },
-];
+// ─── API ──────────────────────────────────────────────────────────────────────
+const SCHOOL_DATA_URL = "https://functions.poehali.dev/4dcdd9ba-ced0-44ef-bf2a-2102fd80ff12";
+
+async function apiGetChildren(): Promise<Child[]> {
+  const res = await fetch(`${SCHOOL_DATA_URL}?type=children`);
+  const data = await res.json();
+  return data.children ?? [];
+}
+
+async function apiGetAttendance(): Promise<WeekAttendance[]> {
+  const res = await fetch(`${SCHOOL_DATA_URL}?type=attendance`);
+  const data = await res.json();
+  return data.attendance ?? [];
+}
+
+async function apiSaveAll(children: Child[], attendance: WeekAttendance[]): Promise<void> {
+  await fetch(`${SCHOOL_DATA_URL}?type=all`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ children, attendance }),
+  });
+}
 
 const STORAGE_KEY = "school_children_data";
 const ATTENDANCE_KEY = "school_attendance_data";
 
-function loadData(): Child[] {
+function loadLocalChildren(): Child[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (e) {
-    void e;
-  }
-  return INITIAL_CHILDREN;
-}
-
-function saveData(data: Child[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-// attendance[weekIndex] = { maxLessons: number, children: { [childId]: number | null } }
-interface WeekAttendance {
-  maxLessons: number | null;
-  children: Record<string, number | null>;
-}
-
-function loadAttendance(): WeekAttendance[] {
-  try {
-    const raw = localStorage.getItem(ATTENDANCE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    void e;
-  }
+  } catch (e) { void e; }
   return [];
 }
 
-function saveAttendance(data: WeekAttendance[]) {
-  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(data));
+function loadLocalAttendance(): WeekAttendance[] {
+  try {
+    const raw = localStorage.getItem(ATTENDANCE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { void e; }
+  return [];
 }
+
+
 
 function buildAttendance(weeks: string[], children: Child[], stored: WeekAttendance[]): WeekAttendance[] {
   return weeks.map((_, wi) => {
@@ -362,9 +295,10 @@ function BarChart({
 
 // ─── Admin View ───────────────────────────────────────────────────────────────
 function AdminView({ onBack }: { onBack: () => void }) {
-  const [children, setChildren] = useState<Child[]>(loadData);
+  const [children, setChildren] = useState<Child[]>([]);
   const [newWeek, setNewWeek] = useState("");
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [addingChild, setAddingChild] = useState(false);
   const [newChildName, setNewChildName] = useState("");
   const [newChildLogin, setNewChildLogin] = useState("");
@@ -373,9 +307,33 @@ function AdminView({ onBack }: { onBack: () => void }) {
   const weeks = children[0]?.entries.map((e) => e.week) ?? [];
 
   // ── Посещаемость ──
-  const [attendance, setAttendance] = useState<WeekAttendance[]>(() =>
-    buildAttendance(weeks, children, loadAttendance())
-  );
+  const [attendance, setAttendance] = useState<WeekAttendance[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        let ch = await apiGetChildren();
+        let att = await apiGetAttendance();
+        if (ch.length === 0) {
+          const local = loadLocalChildren();
+          if (local.length > 0) {
+            ch = local;
+            const localAtt = loadLocalAttendance();
+            att = localAtt.length > 0 ? localAtt : buildAttendance(ch[0]?.entries.map(e => e.week) ?? [], ch, []);
+            await apiSaveAll(ch, att);
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(ATTENDANCE_KEY);
+          }
+        }
+        setChildren(ch);
+        const w = ch[0]?.entries.map(e => e.week) ?? [];
+        setAttendance(buildAttendance(w, ch, att));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const syncAttendanceSize = (newWeeks: string[], newChildren: Child[], prevAtt: WeekAttendance[]) =>
     buildAttendance(newWeeks, newChildren, prevAtt);
@@ -447,9 +405,8 @@ function AdminView({ onBack }: { onBack: () => void }) {
     setAddingChild(false);
   };
 
-  const handleSave = () => {
-    saveData(children);
-    saveAttendance(attendance);
+  const handleSave = async () => {
+    await apiSaveAll(children, attendance);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -569,7 +526,7 @@ function AdminView({ onBack }: { onBack: () => void }) {
           });
         }
 
-        saveData(newChildren);
+        apiSaveAll(newChildren, []);
         return newChildren;
       });
 
@@ -631,7 +588,7 @@ function AdminView({ onBack }: { onBack: () => void }) {
             }
           }
 
-          saveAttendance(newAtt);
+          apiSaveAll(prevChildren, newAtt);
           return newAtt;
         });
 
@@ -648,63 +605,72 @@ function AdminView({ onBack }: { onBack: () => void }) {
   const NAME_W = 180; // px — ширина липкой колонки с именем
   const CELL_W = 72;  // px — ширина ячейки с баллом
 
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <Icon name="Loader2" size={32} />
+        <p className="text-sm">Загружаю данные…</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-white soft-shadow sticky top-0 z-20">
-        <div className="px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
+        <div className="px-3 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors flex-shrink-0">
               <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
             </button>
-            <span className="text-lg">🏫</span>
-            <p className="font-bold text-foreground">Администратор — баллы</p>
+            <span className="text-lg flex-shrink-0">🏫</span>
+            <p className="font-bold text-foreground text-sm truncate">Администратор</p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setAddingChild(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+              title="Добавить ребёнка"
+              className="p-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
             >
-              <Icon name="UserPlus" size={15} />
-              Ребёнок
+              <Icon name="UserPlus" size={17} />
             </button>
             <button
               onClick={() => fileRef1.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
+              title="Импорт баллов (Табл.1)"
+              className="p-2 rounded-xl text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
             >
-              <Icon name="Upload" size={15} />
-              Табл. №1
+              <Icon name="Upload" size={17} />
             </button>
             <button
               onClick={handleExportTable1}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
+              title="Экспорт баллов (Табл.1)"
+              className="p-2 rounded-xl text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
             >
-              <Icon name="Download" size={15} />
-              Табл. №1
+              <Icon name="Download" size={17} />
             </button>
             <button
               onClick={() => fileRef2.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              title="Импорт посещаемости (Табл.2)"
+              className="p-2 rounded-xl text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
             >
-              <Icon name="Upload" size={15} />
-              Табл. №2
+              <Icon name="Upload" size={17} />
             </button>
             <button
               onClick={handleExportTable2}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              title="Экспорт посещаемости (Табл.2)"
+              className="p-2 rounded-xl text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
             >
-              <Icon name="Download" size={15} />
-              Табл. №2
+              <Icon name="Download" size={17} />
             </button>
             <input ref={fileRef1} type="file" accept=".xlsx" className="hidden" onChange={handleImportTable1} />
             <input ref={fileRef2} type="file" accept=".xlsx" className="hidden" onChange={handleImportTable2} />
             <button
               onClick={handleSave}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
                 saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
               }`}
             >
               <Icon name={saved ? "Check" : "Save"} size={15} />
-              {saved ? "Сохранено!" : "Сохранить"}
+              <span className="hidden sm:inline">{saved ? "Сохранено!" : "Сохранить"}</span>
             </button>
           </div>
         </div>
@@ -996,7 +962,8 @@ function ParentView({ onBack }: { onBack: () => void }) {
   const [login, setLogin] = useState("");
   const [child, setChild] = useState<Child | null>(null);
   const [error, setError] = useState("");
-  const [attendanceData] = useState<WeekAttendance[]>(loadAttendance);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<WeekAttendance[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
 
@@ -1030,15 +997,24 @@ function ParentView({ onBack }: { onBack: () => void }) {
     setComments((prev) => [newComment, ...prev]);
   };
 
-  const handleLogin = () => {
-    const data = loadData();
-    const found = data.find((c) => c.parentLogin.toLowerCase() === login.trim().toLowerCase());
-    if (found) {
-      setChild(found);
-      setError("");
-      loadParentComments(found.id);
-    } else {
-      setError("Логин не найден. Уточните у администратора.");
+  const handleLogin = async () => {
+    if (!login.trim()) return;
+    setLoginLoading(true);
+    setError("");
+    try {
+      const [allChildren, att] = await Promise.all([apiGetChildren(), apiGetAttendance()]);
+      const found = allChildren.find((c) => c.parentLogin.toLowerCase() === login.trim().toLowerCase());
+      if (found) {
+        setChild(found);
+        setAttendanceData(att);
+        loadParentComments(found.id);
+      } else {
+        setError("Логин не найден. Уточните у администратора.");
+      }
+    } catch {
+      setError("Ошибка соединения. Попробуйте ещё раз.");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -1070,9 +1046,11 @@ function ParentView({ onBack }: { onBack: () => void }) {
             {error && <p className="text-xs text-red-500 text-center mb-3">{error}</p>}
             <button
               onClick={handleLogin}
-              className="w-full py-3 bg-violet-500 text-white font-semibold rounded-xl hover:bg-violet-600 transition-colors"
+              disabled={loginLoading || !login.trim()}
+              className="w-full py-3 bg-violet-500 text-white font-semibold rounded-xl hover:bg-violet-600 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
             >
-              Войти
+              {loginLoading && <Icon name="Loader2" size={16} />}
+              {loginLoading ? "Проверяю…" : "Войти"}
             </button>
           </div>
         </div>
@@ -1518,25 +1496,25 @@ export default function Index() {
   if (view === "comments") return <CommentsView onBack={() => setView("home")} />;
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center px-4 py-8 sm:py-12">
       <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-80 h-80 bg-violet-100/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
-      <div className="relative z-10 text-center mb-10" style={{ animation: "fadeIn 0.5s ease-out both" }}>
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl soft-shadow-lg mb-5 text-4xl">
+      <div className="relative z-10 text-center mb-8" style={{ animation: "fadeIn 0.5s ease-out both" }}>
+        <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-3xl soft-shadow-lg mb-4 text-3xl sm:text-4xl">
           🏫
         </div>
-        <h1 className="text-4xl font-bold text-foreground mb-2">ШколаПро</h1>
-        <p className="text-muted-foreground">Система учёта баллов</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">ШколаПро</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Система учёта баллов</p>
       </div>
 
-      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-3xl">
+      <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-3xl">
         {[
           {
             key: "admin" as const,
             emoji: "🏫",
             title: "Администратор",
-            desc: "Вносить баллы по детям за каждую неделю",
+            desc: "Вносить баллы по детям",
             color: "from-blue-100 to-blue-50",
             accent: "bg-blue-500 hover:bg-blue-600",
             delay: "0.15s",
@@ -1545,7 +1523,7 @@ export default function Index() {
             key: "parent" as const,
             emoji: "👨‍👩‍👧",
             title: "Родитель",
-            desc: "Смотреть динамику баллов своего ребёнка",
+            desc: "Динамика баллов ребёнка",
             color: "from-violet-100 to-violet-50",
             accent: "bg-violet-500 hover:bg-violet-600",
             delay: "0.25s",
@@ -1554,7 +1532,7 @@ export default function Index() {
             key: "progress" as const,
             emoji: "📊",
             title: "Прогресс",
-            desc: "Таблица прогресса по обучению из Excel",
+            desc: "Таблица прогресса из Excel",
             color: "from-orange-100 to-orange-50",
             accent: "bg-orange-500 hover:bg-orange-600",
             delay: "0.35s",
@@ -1563,7 +1541,7 @@ export default function Index() {
             key: "comments" as const,
             emoji: "💬",
             title: "Комментарии",
-            desc: "Заметки администратора по каждому ребёнку",
+            desc: "Заметки по каждому ребёнку",
             color: "from-emerald-100 to-emerald-50",
             accent: "bg-emerald-500 hover:bg-emerald-600",
             delay: "0.45s",
@@ -1572,15 +1550,15 @@ export default function Index() {
           <button
             key={r.key}
             onClick={() => setView(r.key)}
-            className={`bg-gradient-to-br ${r.color} border-2 border-white rounded-3xl p-7 text-left soft-shadow hover-lift transition-all`}
+            className={`bg-gradient-to-br ${r.color} border-2 border-white rounded-2xl sm:rounded-3xl p-4 sm:p-7 text-left soft-shadow hover-lift transition-all`}
             style={{ animation: `fadeIn 0.5s ease-out ${r.delay} both` }}
           >
-            <div className="text-3xl mb-3">{r.emoji}</div>
-            <h3 className="text-lg font-bold text-foreground mb-1">{r.title}</h3>
-            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">{r.desc}</p>
-            <div className={`${r.accent} text-white text-sm font-semibold px-4 py-2 rounded-xl inline-flex items-center gap-2 transition-colors`}>
+            <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{r.emoji}</div>
+            <h3 className="text-sm sm:text-lg font-bold text-foreground mb-1">{r.title}</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-5 leading-relaxed">{r.desc}</p>
+            <div className={`${r.accent} text-white text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl inline-flex items-center gap-1.5 transition-colors`}>
               Войти
-              <Icon name="ArrowRight" size={15} />
+              <Icon name="ArrowRight" size={13} />
             </div>
           </button>
         ))}

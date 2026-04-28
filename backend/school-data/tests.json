@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Get children",
+      "method": "GET",
+      "path": "/?type=children",
+      "expectedStatus": 200,
+      "expectedBody": {"children": []},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
