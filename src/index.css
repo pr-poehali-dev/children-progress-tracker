@@ -122,17 +122,19 @@
 
   #progress-print-area {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
     overflow: visible !important;
-    width: 100%;
-    height: auto;
+    transform-origin: top left;
+    transform: scale(0.5);
+    width: 200%;
   }
 
   #progress-print-area table {
     width: 100% !important;
     min-width: unset !important;
     border-collapse: collapse !important;
-    font-size: 7pt;
+    font-size: 9pt;
     table-layout: auto !important;
   }
 
@@ -141,7 +143,7 @@
     position: static !important;
     border: 0.5pt solid #999 !important;
     padding: 2px 3px !important;
-    font-size: 7pt;
+    font-size: 9pt;
     writing-mode: horizontal-tb !important;
     height: auto !important;
     white-space: nowrap;
