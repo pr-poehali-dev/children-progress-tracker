@@ -2,21 +2,29 @@ import os
 import json
 import psycopg2
 
-SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "public")
+SCHEMA = "t_p72666246_children_progress_tr"
+
+HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Content-Type": "application/json",
+}
 
 def handler(event: dict, context) -> dict:
-    """Возвращает список комментариев для указанного ребёнка (child_id)."""
+    """Возвращает список комментариев для указанного ребёнка (child_id), новые сверху."""
     if event.get("httpMethod") == "OPTIONS":
-        return {"statusCode": 200, "headers": {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "86400"}, "body": ""}
+        return {"statusCode": 200, "headers": HEADERS, "body": ""}
 
     child_id = (event.get("queryStringParameters") or {}).get("child_id", "")
     if not child_id:
-        return {"statusCode": 400, "headers": {"Access-Control-Allow-Origin": "*"}, "body": json.dumps({"error": "child_id required"})}
+        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "child_id required"})}
 
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
     cur.execute(
-        f"SELECT id, child_id, text, created_at FROM {SCHEMA}.comments WHERE child_id = '{child_id}' ORDER BY created_at DESC"
+        f"SELECT id, child_id, text, created_at FROM {SCHEMA}.comments WHERE child_id = %s ORDER BY created_at DESC",
+        (child_id,)
     )
     rows = cur.fetchall()
     cur.close()
@@ -26,4 +34,4 @@ def handler(event: dict, context) -> dict:
         {"id": r[0], "child_id": r[1], "text": r[2], "created_at": r[3].isoformat()}
         for r in rows
     ]
-    return {"statusCode": 200, "headers": {"Access-Control-Allow-Origin": "*"}, "body": json.dumps({"comments": comments})}
+    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"comments": comments})}

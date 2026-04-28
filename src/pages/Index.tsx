@@ -1162,8 +1162,6 @@ function CommentsView({ onBack }: { onBack: () => void }) {
       };
       setComments((prev) => [newComment, ...prev]);
       textareaRef.current?.focus();
-    } catch {
-      setText(savedText);
     } finally {
       setSaving(false);
     }

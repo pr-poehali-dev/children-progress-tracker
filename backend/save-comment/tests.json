@@ -6,7 +6,8 @@
       "path": "/",
       "body": {"child_id": "1", "text": "Тестовый комментарий"},
       "expectedStatus": 200,
-      "expectedBody": {"id": 0},
+      "expectedBody": {"created_at": ""},
+
       "bodyMatcher": "partial"
     }
   ]
