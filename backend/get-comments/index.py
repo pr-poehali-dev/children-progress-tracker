@@ -23,7 +23,7 @@ def handler(event: dict, context) -> dict:
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
     cur.execute(
-        f"SELECT id, child_id, text, created_at FROM {SCHEMA}.comments WHERE child_id = %s ORDER BY created_at DESC",
+        f"SELECT id, child_id, text, created_at, author FROM {SCHEMA}.comments WHERE child_id = %s ORDER BY created_at DESC",
         (child_id,)
     )
     rows = cur.fetchall()
@@ -31,7 +31,7 @@ def handler(event: dict, context) -> dict:
     conn.close()
 
     comments = [
-        {"id": r[0], "child_id": r[1], "text": r[2], "created_at": r[3].isoformat()}
+        {"id": r[0], "child_id": r[1], "text": r[2], "created_at": r[3].isoformat(), "author": r[4]}
         for r in rows
     ]
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"comments": comments})}

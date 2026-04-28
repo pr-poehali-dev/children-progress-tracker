@@ -12,7 +12,7 @@ HEADERS = {
 }
 
 def handler(event: dict, context) -> dict:
-    """Создаёт (POST) или обновляет (PUT) комментарий к ребёнку."""
+    """Создаёт (POST) или обновляет (PUT) комментарий. author: 'admin' | 'parent'."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": HEADERS, "body": ""}
 
@@ -38,13 +38,16 @@ def handler(event: dict, context) -> dict:
     # POST — создать
     child_id = body.get("child_id", "").strip()
     text = body.get("text", "").strip()
+    author = body.get("author", "admin").strip()
+    if author not in ("admin", "parent"):
+        author = "admin"
     if not child_id or not text:
         return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "child_id and text required"})}
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     cur = conn.cursor()
     cur.execute(
-        f"INSERT INTO {SCHEMA}.comments (child_id, text) VALUES (%s, %s) RETURNING id, created_at",
-        (child_id, text)
+        f"INSERT INTO {SCHEMA}.comments (child_id, text, author) VALUES (%s, %s, %s) RETURNING id, created_at",
+        (child_id, text, author)
     )
     row = cur.fetchone()
     conn.commit()

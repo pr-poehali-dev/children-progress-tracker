@@ -997,6 +997,46 @@ function ParentView({ onBack }: { onBack: () => void }) {
   const [child, setChild] = useState<Child | null>(null);
   const [error, setError] = useState("");
   const [attendanceData] = useState<WeekAttendance[]>(loadAttendance);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [parentText, setParentText] = useState("");
+  const [parentSaving, setParentSaving] = useState(false);
+
+  const loadParentComments = async (childId: string) => {
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`${GET_COMMENTS_URL}?child_id=${encodeURIComponent(childId)}`);
+      const data = await res.json();
+      setComments(data.comments ?? []);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleParentSend = async () => {
+    if (!parentText.trim() || !child) return;
+    setParentSaving(true);
+    const savedText = parentText.trim();
+    setParentText("");
+    try {
+      const res = await fetch(SAVE_COMMENT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ child_id: child.id, text: savedText, author: "parent" }),
+      });
+      const data = await res.json();
+      const newComment: Comment = {
+        id: data.id,
+        child_id: child.id,
+        text: savedText,
+        created_at: data.created_at ?? new Date().toISOString(),
+        author: "parent",
+      };
+      setComments((prev) => [newComment, ...prev]);
+    } finally {
+      setParentSaving(false);
+    }
+  };
 
   const handleLogin = () => {
     const data = loadData();
@@ -1004,6 +1044,7 @@ function ParentView({ onBack }: { onBack: () => void }) {
     if (found) {
       setChild(found);
       setError("");
+      loadParentComments(found.id);
     } else {
       setError("Логин не найден. Уточните у администратора.");
     }
@@ -1071,24 +1112,64 @@ function ParentView({ onBack }: { onBack: () => void }) {
           <BarChart entries={child.entries} system={child.system} childId={child.id} attendance={attendanceData} />
         </div>
 
-        {/* Week detail list */}
+        {/* Лента комментариев */}
         <div className="mt-4 bg-white rounded-2xl soft-shadow p-5">
-          <h3 className="font-semibold text-foreground mb-4">Подробно</h3>
-          <div className="space-y-1.5">
-            {child.entries.map((e, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <span className="text-sm text-muted-foreground">{e.week}</span>
-                <span className={`text-sm font-bold ${
-                  e.score === null ? "text-muted-foreground" :
-                  e.score === 0 ? "text-red-400" :
-                  (e.score >= 150) ? "text-emerald-600" :
-                  "text-foreground"
-                }`}>
-                  {e.score !== null ? `${e.score} б.` : "нет данных"}
-                </span>
-              </div>
-            ))}
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Icon name="MessageSquare" size={17} className="text-violet-500" />
+            Комментарии
+          </h3>
+
+          {/* Форма родителя */}
+          <div className="space-y-2 mb-5">
+            <textarea
+              value={parentText}
+              onChange={(e) => setParentText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleParentSend(); }}
+              placeholder="Написать сообщение… (Ctrl+Enter — отправить)"
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-all resize-none"
+            />
+            <button
+              onClick={handleParentSend}
+              disabled={parentSaving || !parentText.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              <Icon name={parentSaving ? "Loader2" : "Send"} size={15} />
+              {parentSaving ? "Отправляю…" : "Отправить"}
+            </button>
           </div>
+
+          {/* Лента */}
+          {commentsLoading ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground text-sm gap-2">
+              <Icon name="Loader2" size={16} />
+              Загружаю…
+            </div>
+          ) : comments.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Комментариев пока нет</p>
+          ) : (
+            <div className="space-y-3">
+              {comments.map((c) => {
+                const isParent = c.author === "parent";
+                return (
+                  <div
+                    key={c.id}
+                    className={`rounded-xl px-4 py-3 border ${isParent ? "bg-violet-50 border-violet-200 ml-6" : "bg-slate-50 border-border"}`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: isParent ? "#7c3aed" : "#64748b" }}>
+                        {isParent ? "Родитель" : "Администратор"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                      {new Date(c.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "")}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1105,6 +1186,7 @@ interface Comment {
   child_id: string;
   text: string;
   created_at: string;
+  author: "admin" | "parent";
 }
 
 function CommentsView({ onBack }: { onBack: () => void }) {
@@ -1154,7 +1236,7 @@ function CommentsView({ onBack }: { onBack: () => void }) {
       const res = await fetch(SAVE_COMMENT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ child_id: openId, text: savedText }),
+        body: JSON.stringify({ child_id: openId, text: savedText, author: "admin" }),
       });
       const data = await res.json();
       const newComment: Comment = {
@@ -1162,6 +1244,7 @@ function CommentsView({ onBack }: { onBack: () => void }) {
         child_id: openId,
         text: savedText,
         created_at: data.created_at ?? new Date().toISOString(),
+        author: "admin",
       };
       setComments((prev) => [newComment, ...prev]);
       textareaRef.current?.focus();
@@ -1287,7 +1370,7 @@ function CommentsView({ onBack }: { onBack: () => void }) {
                       {comments.map((c) => (
                         <div
                           key={c.id}
-                          className="group relative bg-slate-50 rounded-xl px-4 py-3 border border-border"
+                          className={`group relative rounded-xl px-4 py-3 border ${c.author === "parent" ? "bg-violet-50 border-violet-200 ml-4" : "bg-slate-50 border-border"}`}
                         >
                           {editingId === c.id ? (
                             <div className="space-y-2">
@@ -1321,6 +1404,9 @@ function CommentsView({ onBack }: { onBack: () => void }) {
                             </div>
                           ) : (
                             <>
+                              {c.author === "parent" && (
+                                <span className="text-[10px] font-bold uppercase tracking-wide text-violet-500 block mb-1">Родитель</span>
+                              )}
                               <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
                               <div className="flex items-center justify-between mt-2">
                                 <span className="text-[11px] text-muted-foreground">{formatDate(c.created_at)}</span>
