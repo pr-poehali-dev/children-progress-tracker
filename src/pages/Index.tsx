@@ -257,22 +257,54 @@ function BarChart({
 
               const color = isEmpty ? "#e2e8f0" : getBarColor(score, system, prevScore);
 
+              const darken = (hex: string, amt = 40) => {
+                const n = parseInt(hex.slice(1), 16);
+                const r = Math.max(0, (n >> 16) - amt);
+                const g = Math.max(0, ((n >> 8) & 0xff) - amt);
+                const b = Math.max(0, (n & 0xff) - amt);
+                return `rgb(${r},${g},${b})`;
+              };
+              const lighten = (hex: string, amt = 40) => {
+                const n = parseInt(hex.slice(1), 16);
+                const r = Math.min(255, (n >> 16) + amt);
+                const g = Math.min(255, ((n >> 8) & 0xff) + amt);
+                const b = Math.min(255, (n & 0xff) + amt);
+                return `rgb(${r},${g},${b})`;
+              };
+              const sideColor = color.startsWith("#") ? darken(color, 45) : color;
+              const topColor = color.startsWith("#") ? lighten(color, 30) : color;
+              const BAR_W = 22;
+              const DEPTH = 7;
+
               return (
                 <div
                   key={i}
                   className="flex flex-col items-center"
                   style={{ width: `${COL_W}px`, flexShrink: 0, height: `${CHART_H}px`, justifyContent: "flex-end" }}
                 >
-                  <div
-                    className="rounded-t-sm transition-all duration-500"
-                    style={{
-                      width: "22px",
-                      height: `${barH}px`,
-                      backgroundColor: color,
-                      minHeight: "4px",
-                      boxShadow: e.best ? "0 0 8px rgba(245,158,11,0.6)" : undefined,
-                    }}
-                  />
+                  <div style={{ position: "relative", width: BAR_W, height: barH }}>
+                    {/* Передняя грань */}
+                    <div style={{
+                      position: "absolute", left: 0, top: DEPTH, width: BAR_W, height: barH - DEPTH,
+                      background: `linear-gradient(to right, ${sideColor} 0%, ${color} 30%, ${color} 100%)`,
+                      boxShadow: e.best ? "0 0 10px rgba(245,158,11,0.7)" : "inset -3px 0 6px rgba(0,0,0,0.15)",
+                    }} />
+                    {/* Правая боковая грань */}
+                    <div style={{
+                      position: "absolute", right: -DEPTH, top: DEPTH + DEPTH * 0.5, width: DEPTH, height: barH - DEPTH,
+                      background: sideColor,
+                      transform: "skewY(-45deg)",
+                      transformOrigin: "top left",
+                    }} />
+                    {/* Верхняя грань */}
+                    <div style={{
+                      position: "absolute", left: 0, top: 0, width: BAR_W + DEPTH, height: DEPTH,
+                      background: topColor,
+                      transform: "skewX(-45deg) translateX(0px)",
+                      transformOrigin: "bottom left",
+                      clipPath: `polygon(${DEPTH}px 0%, 100% 0%, ${BAR_W}px 100%, 0% 100%)`,
+                    }} />
+                  </div>
                 </div>
               );
             })}
