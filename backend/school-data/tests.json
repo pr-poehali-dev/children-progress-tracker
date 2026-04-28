@@ -5,8 +5,8 @@
       "method": "GET",
       "path": "/?type=children",
       "expectedStatus": 200,
-      "expectedBody": {"children": []},
-      "bodyMatcher": "partial"
+      "expectedBody": {"children": [{"id": "x"}]},
+      "bodyMatcher": "schema"
     }
   ]
 }

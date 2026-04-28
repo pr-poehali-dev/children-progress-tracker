@@ -82,12 +82,42 @@ def save_attendance(conn, attendance):
     cur.close()
 
 
+def get_progress(conn):
+    cur = conn.cursor()
+    cur.execute(f"SELECT file_name, data, checked FROM {SCHEMA}.progress ORDER BY id DESC LIMIT 1")
+    row = cur.fetchone()
+    cur.close()
+    if not row:
+        return {"fileName": "", "data": None, "checked": []}
+    return {"fileName": row[0], "data": row[1], "checked": row[2] if row[2] else []}
+
+
+def save_progress(conn, file_name, data, checked):
+    cur = conn.cursor()
+    cur.execute(f"SELECT id FROM {SCHEMA}.progress ORDER BY id DESC LIMIT 1")
+    row = cur.fetchone()
+    if row:
+        cur.execute(
+            f"UPDATE {SCHEMA}.progress SET file_name = %s, data = %s, checked = %s, updated_at = NOW() WHERE id = %s",
+            (file_name, Json(data), Json(checked), row[0])
+        )
+    else:
+        cur.execute(
+            f"INSERT INTO {SCHEMA}.progress (file_name, data, checked) VALUES (%s, %s, %s)",
+            (file_name, Json(data), Json(checked))
+        )
+    conn.commit()
+    cur.close()
+
+
 def handler(event: dict, context) -> dict:
     """Единый эндпоинт для данных школы.
     GET  ?type=children           → список детей
     GET  ?type=attendance         → посещаемость
+    GET  ?type=progress           → данные прогресса
     POST ?type=children    body={children:[...]}
     POST ?type=attendance  body={attendance:[...]}
+    POST ?type=progress    body={fileName, data, checked}
     POST ?type=all         body={children:[...], attendance:[...]}  — сохранить всё сразу
     """
     if event.get("httpMethod") == "OPTIONS":
@@ -102,10 +132,12 @@ def handler(event: dict, context) -> dict:
     if method == "GET":
         if data_type == "attendance":
             result = {"attendance": get_attendance(conn)}
+        elif data_type == "progress":
+            result = get_progress(conn)
         else:
             result = {"children": get_children(conn)}
         conn.close()
-        return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(result)}
+        return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(result, ensure_ascii=False)}
 
     if method == "POST":
         body = json.loads(event.get("body") or "{}")
@@ -118,6 +150,10 @@ def handler(event: dict, context) -> dict:
             return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"ok": True})}
         if data_type == "attendance":
             save_attendance(conn, body.get("attendance", []))
+            conn.close()
+            return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"ok": True})}
+        if data_type == "progress":
+            save_progress(conn, body.get("fileName", ""), body.get("data", {}), body.get("checked", []))
             conn.close()
             return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"ok": True})}
         save_children(conn, body.get("children", []))

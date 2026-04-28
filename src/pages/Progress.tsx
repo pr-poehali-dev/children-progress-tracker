@@ -92,31 +92,40 @@ const CHILD_BG   = ["#e3effe", "#fefff9"];
 const CHECKED_BG = ["#6297DC", "#94BC77"];
 const SUBJ_BG    = ["#ccdaf9", "#eaf2e3"];
 
+const SCHOOL_DATA_URL = "https://functions.poehali.dev/4dcdd9ba-ced0-44ef-bf2a-2102fd80ff12";
+
+// Локальные ключи для миграции старых данных
 const STORAGE_KEY        = "progress_checked_v2";
 const STORAGE_DATA_KEY   = "progress_data_v2";
 const STORAGE_FNAME_KEY  = "progress_filename_v2";
 
-function loadChecked(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return new Set(JSON.parse(raw) as string[]);
-  } catch { /* ignore */ }
-  return new Set();
+async function apiGetProgress(): Promise<{ data: ProgressData | null; fileName: string; checked: string[] }> {
+  const res = await fetch(`${SCHOOL_DATA_URL}?type=progress`);
+  const json = await res.json();
+  return {
+    data: json.data && json.data.dates ? json.data as ProgressData : null,
+    fileName: json.fileName ?? "",
+    checked: Array.isArray(json.checked) ? json.checked : [],
+  };
 }
-function saveChecked(s: Set<string>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...s]));
+
+async function apiSaveProgress(data: ProgressData, fileName: string, checked: string[]): Promise<void> {
+  await fetch(`${SCHOOL_DATA_URL}?type=progress`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data, fileName, checked }),
+  });
 }
-function loadData(): { data: ProgressData | null; fileName: string } {
+
+function loadLocalProgress(): { data: ProgressData | null; fileName: string; checked: string[] } {
   try {
     const raw = localStorage.getItem(STORAGE_DATA_KEY);
     const fn  = localStorage.getItem(STORAGE_FNAME_KEY) ?? "";
-    if (raw) return { data: JSON.parse(raw) as ProgressData, fileName: fn };
+    const checkedRaw = localStorage.getItem(STORAGE_KEY);
+    const checked = checkedRaw ? (JSON.parse(checkedRaw) as string[]) : [];
+    if (raw) return { data: JSON.parse(raw) as ProgressData, fileName: fn, checked };
   } catch { /* ignore */ }
-  return { data: null, fileName: "" };
-}
-function persistData(data: ProgressData, fileName: string) {
-  localStorage.setItem(STORAGE_DATA_KEY, JSON.stringify(data));
-  localStorage.setItem(STORAGE_FNAME_KEY, fileName);
+  return { data: null, fileName: "", checked: [] };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -129,12 +138,42 @@ export default function ProgressView({ onBack }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
-  const [data, setData] = useState<ProgressData | null>(() => loadData().data);
-  const [fileName, setFileName] = useState<string>(() => loadData().fileName);
+  const [data, setData] = useState<ProgressData | null>(null);
+  const [fileName, setFileName] = useState<string>("");
   const [error, setError] = useState("");
-  const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
+  const [checked, setChecked] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [subjectFilter, setSubjectFilter] = useState<Set<string>>(new Set());
+
+  // Загрузка из БД при монтировании (с миграцией из localStorage)
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const remote = await apiGetProgress();
+        if (remote.data) {
+          setData(remote.data);
+          setFileName(remote.fileName);
+          setChecked(new Set(remote.checked));
+        } else {
+          // Нет данных в БД — пробуем мигрировать из localStorage
+          const local = loadLocalProgress();
+          if (local.data) {
+            setData(local.data);
+            setFileName(local.fileName);
+            setChecked(new Set(local.checked));
+            await apiSaveProgress(local.data, local.fileName, local.checked);
+            localStorage.removeItem(STORAGE_DATA_KEY);
+            localStorage.removeItem(STORAGE_FNAME_KEY);
+            localStorage.removeItem(STORAGE_KEY);
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!headerRef.current) return;
@@ -163,9 +202,9 @@ export default function ProgressView({ onBack }: Props) {
     e.target.value = "";
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!data) return;
-    persistData(data, fileName);
+    await apiSaveProgress(data, fileName, [...checked]);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -174,7 +213,7 @@ export default function ProgressView({ onBack }: Props) {
     setChecked(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
-      saveChecked(next);
+      if (data) apiSaveProgress(data, fileName, [...next]);
       return next;
     });
   };
@@ -183,6 +222,15 @@ export default function ProgressView({ onBack }: Props) {
   const COL_SUBJ = 150;
   const COL_CELL = 27;
   const HEADER_TOP = headerHeight;
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <Icon name="Loader2" size={32} />
+        <p className="text-sm">Загружаю данные…</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
