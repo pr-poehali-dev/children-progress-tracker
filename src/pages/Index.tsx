@@ -304,7 +304,7 @@ function BarChart({
 }
 
 // ─── Admin View ───────────────────────────────────────────────────────────────
-function AdminView({ onBack }: { onBack: () => void }) {
+function AdminView({ onBack, onViewParent }: { onBack: () => void; onViewParent?: (login: string) => void }) {
   const [children, setChildren] = useState<Child[]>([]);
   const [newWeek, setNewWeek] = useState("");
   const [saved, setSaved] = useState(false);
@@ -780,7 +780,11 @@ function AdminView({ onBack }: { onBack: () => void }) {
                       backgroundColor: ri % 2 === 0 ? "#ffffff" : "#f8fafc",
                     }}
                   >
-                    <p className="text-sm font-semibold text-foreground leading-tight truncate">{c.name}</p>
+                    <button
+                      onClick={() => onViewParent && c.parentLogin && onViewParent(c.parentLogin)}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline leading-tight truncate text-left w-full"
+                      title="Открыть кабинет родителя"
+                    >{c.name}</button>
                     <p className="text-[11px] text-muted-foreground">@{c.parentLogin}</p>
                   </div>
 
@@ -1473,9 +1477,23 @@ function CommentsView({ onBack }: { onBack: () => void }) {
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [section, setSection] = useState<"scores" | "progress" | "comments" | null>(null);
+  const [parentLoginView, setParentLoginView] = useState<string | null>(null);
+  const [returnSection, setReturnSection] = useState<"scores" | "progress" | "comments" | null>(null);
 
-  if (section === "scores") return <AdminView onBack={() => setSection(null)} />;
-  if (section === "progress") return <ProgressView onBack={() => setSection(null)} />;
+  const handleViewParent = (login: string, from: "scores" | "progress" | "comments") => {
+    setParentLoginView(login);
+    setReturnSection(from);
+  };
+
+  if (parentLoginView !== null) return (
+    <ParentView
+      initialLogin={parentLoginView}
+      onBack={() => { setParentLoginView(null); setSection(returnSection); }}
+    />
+  );
+
+  if (section === "scores") return <AdminView onBack={() => setSection(null)} onViewParent={(login) => handleViewParent(login, "scores")} />;
+  if (section === "progress") return <ProgressView onBack={() => setSection(null)} onViewParent={(login) => handleViewParent(login, "progress")} />;
   if (section === "comments") return <CommentsView onBack={() => setSection(null)} />;
 
   return (

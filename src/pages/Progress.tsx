@@ -132,9 +132,10 @@ function loadLocalProgress(): { data: ProgressData | null; fileName: string; che
 
 interface Props {
   onBack: () => void;
+  onViewParent?: (login: string) => void;
 }
 
-export default function ProgressView({ onBack }: Props) {
+export default function ProgressView({ onBack, onViewParent }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -145,6 +146,23 @@ export default function ProgressView({ onBack }: Props) {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subjectFilter, setSubjectFilter] = useState<Set<string>>(new Set());
+  const [nameToLogin, setNameToLogin] = useState<Record<string, string>>({});
+
+  // Загрузка детей с логинами для сопоставления имён
+  useEffect(() => {
+    if (!onViewParent) return;
+    (async () => {
+      try {
+        const res = await fetch(`${SCHOOL_DATA_URL}?type=children`);
+        const json = await res.json();
+        const map: Record<string, string> = {};
+        for (const c of (json.children ?? [])) {
+          if (c.name && c.parentLogin) map[c.name] = c.parentLogin;
+        }
+        setNameToLogin(map);
+      } catch { /* ignore */ }
+    })();
+  }, [onViewParent]);
 
   // Загрузка из БД при монтировании (с миграцией из localStorage)
   useEffect(() => {
@@ -452,7 +470,13 @@ export default function ProgressView({ onBack }: Props) {
                                 boxShadow: "2px 0 6px rgba(0,0,0,0.04)",
                               }}
                             >
-                              {child.name}
+                              {onViewParent && nameToLogin[child.name] ? (
+                                <button
+                                  onClick={() => onViewParent(nameToLogin[child.name])}
+                                  style={{ color: "#2563eb", fontWeight: 800, fontSize: 12, textAlign: "left", cursor: "pointer", textDecoration: "underline", background: "none", border: "none", padding: 0 }}
+                                  title="Открыть кабинет родителя"
+                                >{child.name}</button>
+                              ) : child.name}
                             </td>
                           )}
 
