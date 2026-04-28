@@ -1095,13 +1095,208 @@ function ParentView({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── Comments View ────────────────────────────────────────────────────────────
+const GET_COMMENTS_URL = "https://functions.poehali.dev/2115d774-b0b9-4412-bcae-78b0f8bcb563";
+const SAVE_COMMENT_URL = "https://functions.poehali.dev/86719a99-e955-46c3-a4f0-3110732c4ed9";
+const DELETE_COMMENT_URL = "https://functions.poehali.dev/90a6388b-783b-4bc4-9811-3eb26fddd21c";
+
+interface Comment {
+  id: number;
+  child_id: string;
+  text: string;
+  created_at: string;
+}
+
+function CommentsView({ onBack }: { onBack: () => void }) {
+  const children = loadData();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const loadComments = async (childId: string) => {
+    setLoading(true);
+    setComments([]);
+    try {
+      const res = await fetch(`${GET_COMMENTS_URL}?child_id=${encodeURIComponent(childId)}`);
+      const data = await res.json();
+      setComments(data.comments ?? []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggle = (childId: string) => {
+    if (openId === childId) {
+      setOpenId(null);
+      setComments([]);
+      setText("");
+    } else {
+      setOpenId(childId);
+      setText("");
+      loadComments(childId);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!text.trim() || !openId) return;
+    setSaving(true);
+    try {
+      const res = await fetch(SAVE_COMMENT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ child_id: openId, text: text.trim() }),
+      });
+      const data = await res.json();
+      const newComment: Comment = {
+        id: data.id,
+        child_id: openId,
+        text: text.trim(),
+        created_at: data.created_at,
+      };
+      setComments((prev) => [newComment, ...prev]);
+      setText("");
+      textareaRef.current?.focus();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    setDeleting(id);
+    try {
+      await fetch(DELETE_COMMENT_URL, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setComments((prev) => prev.filter((c) => c.id !== id));
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString("ru-RU", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="bg-white soft-shadow sticky top-0 z-20">
+        <div className="px-4 py-4 flex items-center gap-3">
+          <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
+            <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
+          </button>
+          <span className="text-lg">💬</span>
+          <p className="font-bold text-foreground">Комментарии</p>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-2">
+        {children.map((child) => {
+          const isOpen = openId === child.id;
+          return (
+            <div key={child.id} className="bg-white rounded-2xl soft-shadow overflow-hidden">
+              {/* Имя ребёнка — кнопка */}
+              <button
+                onClick={() => handleToggle(child.id)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-base">👤</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground text-sm leading-tight">{child.name}</p>
+                    <p className="text-[11px] text-muted-foreground">@{child.parentLogin}</p>
+                  </div>
+                </div>
+                <Icon
+                  name={isOpen ? "ChevronUp" : "ChevronDown"}
+                  size={18}
+                  className="text-muted-foreground flex-shrink-0"
+                />
+              </button>
+
+              {/* Раскрытая лента */}
+              {isOpen && (
+                <div className="border-t border-border px-5 pb-5 pt-4 space-y-4">
+                  {/* Поле ввода нового комментария */}
+                  <div className="space-y-2">
+                    <textarea
+                      ref={textareaRef}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSave();
+                      }}
+                      placeholder="Написать комментарий… (Ctrl+Enter — отправить)"
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all resize-none"
+                    />
+                    <button
+                      onClick={handleSave}
+                      disabled={saving || !text.trim()}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+                    >
+                      <Icon name={saving ? "Loader2" : "Send"} size={15} />
+                      {saving ? "Сохраняю…" : "Отправить"}
+                    </button>
+                  </div>
+
+                  {/* Лента комментариев */}
+                  {loading ? (
+                    <div className="flex items-center justify-center py-6 text-muted-foreground text-sm gap-2">
+                      <Icon name="Loader2" size={16} />
+                      Загружаю…
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-3 text-center">Комментариев пока нет</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {comments.map((c) => (
+                        <div
+                          key={c.id}
+                          className="group relative bg-slate-50 rounded-xl px-4 py-3 border border-border"
+                        >
+                          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-[11px] text-muted-foreground">{formatDate(c.created_at)}</span>
+                            <button
+                              onClick={() => handleDelete(c.id)}
+                              disabled={deleting === c.id}
+                              className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all p-1 rounded-lg hover:bg-red-50"
+                            >
+                              <Icon name={deleting === c.id ? "Loader2" : "Trash2"} size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Index() {
-  const [view, setView] = useState<"home" | "admin" | "parent" | "progress">("home");
+  const [view, setView] = useState<"home" | "admin" | "parent" | "progress" | "comments">("home");
 
   if (view === "admin") return <AdminView onBack={() => setView("home")} />;
   if (view === "parent") return <ParentView onBack={() => setView("home")} />;
   if (view === "progress") return <ProgressView onBack={() => setView("home")} />;
+  if (view === "comments") return <CommentsView onBack={() => setView("home")} />;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center px-4 py-12">
@@ -1116,7 +1311,7 @@ export default function Index() {
         <p className="text-muted-foreground">Система учёта баллов</p>
       </div>
 
-      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-3xl">
         {[
           {
             key: "admin" as const,
@@ -1144,6 +1339,15 @@ export default function Index() {
             color: "from-orange-100 to-orange-50",
             accent: "bg-orange-500 hover:bg-orange-600",
             delay: "0.35s",
+          },
+          {
+            key: "comments" as const,
+            emoji: "💬",
+            title: "Комментарии",
+            desc: "Заметки администратора по каждому ребёнку",
+            color: "from-emerald-100 to-emerald-50",
+            accent: "bg-emerald-500 hover:bg-emerald-600",
+            delay: "0.45s",
           },
         ].map((r) => (
           <button
