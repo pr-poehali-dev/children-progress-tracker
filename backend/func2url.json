@@ -1,7 +1,4 @@
 {
-  "school-data": "https://functions.poehali.dev/4dcdd9ba-ced0-44ef-bf2a-2102fd80ff12",
-  "upload-image": "https://functions.poehali.dev/4aac4414-45eb-493f-a6ad-482423971512",
-  "get-comments": "https://functions.poehali.dev/2115d774-b0b9-4412-bcae-78b0f8bcb563",
-  "save-comment": "https://functions.poehali.dev/86719a99-e955-46c3-a4f0-3110732c4ed9",
-  "comments": "https://functions.poehali.dev/90a6388b-783b-4bc4-9811-3eb26fddd21c"
+  "comment-api": "https://functions.poehali.dev/2581983b-c407-4d90-955e-73413b44e65a",
+  "school-data": "https://functions.poehali.dev/4dcdd9ba-ced0-44ef-bf2a-2102fd80ff12"
 }

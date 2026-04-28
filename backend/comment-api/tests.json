@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Get school comments",
+      "method": "GET",
+      "path": "/?child_id=__school__",
+      "expectedStatus": 200,
+      "expectedBody": {"comments": [{"id": 7}]},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

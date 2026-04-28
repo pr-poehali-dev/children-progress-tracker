@@ -1137,10 +1137,11 @@ function ParentView({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Comments View ────────────────────────────────────────────────────────────
-const GET_COMMENTS_URL = "https://functions.poehali.dev/2115d774-b0b9-4412-bcae-78b0f8bcb563";
-const SAVE_COMMENT_URL = "https://functions.poehali.dev/86719a99-e955-46c3-a4f0-3110732c4ed9";
-const DELETE_COMMENT_URL = "https://functions.poehali.dev/90a6388b-783b-4bc4-9811-3eb26fddd21c";
-const UPLOAD_IMAGE_URL = "https://functions.poehali.dev/4aac4414-45eb-493f-a6ad-482423971512";
+const COMMENT_API_URL = "https://functions.poehali.dev/2581983b-c407-4d90-955e-73413b44e65a";
+const GET_COMMENTS_URL = COMMENT_API_URL;
+const SAVE_COMMENT_URL = COMMENT_API_URL;
+const DELETE_COMMENT_URL = COMMENT_API_URL;
+const UPLOAD_IMAGE_URL = `${COMMENT_API_URL}?action=upload`;
 
 interface Comment {
   id: number;
