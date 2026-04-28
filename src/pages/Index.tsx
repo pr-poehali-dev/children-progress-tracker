@@ -1145,22 +1145,25 @@ function CommentsView({ onBack }: { onBack: () => void }) {
   const handleSave = async () => {
     if (!text.trim() || !openId) return;
     setSaving(true);
+    const savedText = text.trim();
+    setText("");
     try {
       const res = await fetch(SAVE_COMMENT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ child_id: openId, text: text.trim() }),
+        body: JSON.stringify({ child_id: openId, text: savedText }),
       });
       const data = await res.json();
       const newComment: Comment = {
         id: data.id,
         child_id: openId,
-        text: text.trim(),
-        created_at: data.created_at,
+        text: savedText,
+        created_at: data.created_at ?? new Date().toISOString(),
       };
       setComments((prev) => [newComment, ...prev]);
-      setText("");
       textareaRef.current?.focus();
+    } catch {
+      setText(savedText);
     } finally {
       setSaving(false);
     }
@@ -1182,7 +1185,7 @@ function CommentsView({ onBack }: { onBack: () => void }) {
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleString("ru-RU", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "");
   };
 
   return (
