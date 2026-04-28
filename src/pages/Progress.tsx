@@ -284,7 +284,7 @@ export default function ProgressView({ onBack }: Props) {
                 </button>
               ))}
             </div>
-          <div id="progress-print-area" className="rounded-[2rem] overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
+          <div id="progress-print-area" className="rounded-[2rem]" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)", overflow: "clip" }}>
             <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 110px)" }}>
               <table style={{
                 borderCollapse: "separate",
