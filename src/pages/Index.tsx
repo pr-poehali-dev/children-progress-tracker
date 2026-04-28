@@ -117,12 +117,22 @@ function BarChart({
   system,
   childId,
   attendance,
+  scrollToEnd = false,
 }: {
   entries: WeekEntry[];
   system: System;
   childId?: string;
   attendance?: WeekAttendance[];
+  scrollToEnd?: boolean;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollToEnd && scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, [scrollToEnd, entries]);
+
   const valid = entries.filter((e) => e.score !== null && e.score >= 0);
   if (valid.length === 0) return <p className="text-muted-foreground text-sm py-4">Нет данных</p>;
 
@@ -150,7 +160,7 @@ function BarChart({
       </div>
 
       {/* Chart */}
-      <div className="overflow-x-auto">
+      <div ref={scrollRef} className="overflow-x-auto">
         <div style={{ minWidth: `${entries.length * COL_W}px` }}>
 
           {/* Best badge + Scores above bars */}
@@ -1042,7 +1052,7 @@ function ParentView({ onBack, initialLogin = "" }: { onBack: () => void; initial
             <Icon name="BarChart3" size={18} className="text-violet-500" />
             Баллы по неделям
           </h3>
-          <BarChart entries={child.entries} system={child.system} childId={child.id} attendance={attendanceData} />
+          <BarChart entries={child.entries} system={child.system} childId={child.id} attendance={attendanceData} scrollToEnd />
         </div>
 
         {/* Лента комментариев */}
