@@ -1420,9 +1420,14 @@ function AdminCommentThread({
 }
 
 function CommentsView({ onBack }: { onBack: () => void }) {
-  const children = loadData();
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loadingChildren, setLoadingChildren] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [schoolOpen, setSchoolOpen] = useState(false);
+
+  useEffect(() => {
+    apiGetChildren().then(setChildren).finally(() => setLoadingChildren(false));
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -1437,6 +1442,11 @@ function CommentsView({ onBack }: { onBack: () => void }) {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-2">
+        {loadingChildren && (
+          <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
+            <Icon name="Loader2" size={18} /> Загружаю…
+          </div>
+        )}
         {/* Общие комментарии по школе */}
         <div className="bg-amber-50 rounded-2xl soft-shadow overflow-hidden border border-amber-200">
           <button
