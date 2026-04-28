@@ -958,11 +958,9 @@ function AdminView({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Parent View ──────────────────────────────────────────────────────────────
-function ParentView({ onBack }: { onBack: () => void }) {
-  const [login, setLogin] = useState("");
+function ParentView({ onBack, initialLogin = "" }: { onBack: () => void; initialLogin?: string }) {
   const [child, setChild] = useState<Child | null>(null);
-  const [error, setError] = useState("");
-  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(!!initialLogin);
   const [attendanceData, setAttendanceData] = useState<WeekAttendance[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -997,72 +995,37 @@ function ParentView({ onBack }: { onBack: () => void }) {
     setComments((prev) => [newComment, ...prev]);
   };
 
-  const handleLogin = async () => {
-    if (!login.trim()) return;
-    setLoginLoading(true);
-    setError("");
-    try {
-      const [allChildren, att] = await Promise.all([apiGetChildren(), apiGetAttendance()]);
-      const found = allChildren.find((c) => c.parentLogin.toLowerCase() === login.trim().toLowerCase());
-      if (found) {
-        setChild(found);
-        setAttendanceData(att);
-        loadParentComments(found.id);
-      } else {
-        setError("Логин не найден. Уточните у администратора.");
+  useEffect(() => {
+    if (!initialLogin) return;
+    (async () => {
+      try {
+        const [allChildren, att] = await Promise.all([apiGetChildren(), apiGetAttendance()]);
+        const found = allChildren.find((c) => c.parentLogin.toLowerCase() === initialLogin.toLowerCase());
+        if (found) {
+          setChild(found);
+          setAttendanceData(att);
+          loadParentComments(found.id);
+        }
+      } finally {
+        setLoginLoading(false);
       }
-    } catch {
-      setError("Ошибка соединения. Попробуйте ещё раз.");
-    } finally {
-      setLoginLoading(false);
-    }
-  };
+    })();
+  }, [initialLogin]);
 
-  if (!child) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="bg-white soft-shadow">
-          <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-            <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
-              <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
-            </button>
-            <span className="text-lg">👨‍👩‍👧</span>
-            <p className="font-bold text-foreground">Кабинет родителя</p>
-          </div>
-        </header>
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="bg-white rounded-3xl soft-shadow-lg p-8 w-full max-w-sm animate-fade-in">
-            <div className="text-4xl text-center mb-4">🔑</div>
-            <h2 className="text-xl font-bold text-foreground text-center mb-1">Вход для родителей</h2>
-            <p className="text-sm text-muted-foreground text-center mb-6">Введите логин, который выдал администратор</p>
-            <input
-              autoFocus
-              placeholder="Ваш логин"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              className="w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:border-violet-400 transition-colors mb-3 text-center font-mono"
-            />
-            {error && <p className="text-xs text-red-500 text-center mb-3">{error}</p>}
-            <button
-              onClick={handleLogin}
-              disabled={loginLoading || !login.trim()}
-              className="w-full py-3 bg-violet-500 text-white font-semibold rounded-xl hover:bg-violet-600 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
-            >
-              {loginLoading && <Icon name="Loader2" size={16} />}
-              {loginLoading ? "Проверяю…" : "Войти"}
-            </button>
-          </div>
-        </div>
+  if (loginLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <Icon name="Loader2" size={32} />
+        <p className="text-sm">Загружаю…</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-white soft-shadow sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => setChild(null)} className="p-2 rounded-xl hover:bg-muted transition-colors">
+          <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
             <Icon name="ArrowLeft" size={20} className="text-muted-foreground" />
           </button>
           <span className="text-lg">👨‍👩‍👧</span>
@@ -1497,83 +1460,138 @@ function CommentsView({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-export default function Index() {
-  const [view, setView] = useState<"home" | "admin" | "parent" | "progress" | "comments">("home");
+// ─── Admin Dashboard ──────────────────────────────────────────────────────────
+function AdminDashboard({ onLogout }: { onLogout: () => void }) {
+  const [section, setSection] = useState<"scores" | "progress" | "comments" | null>(null);
 
-  if (view === "admin") return <AdminView onBack={() => setView("home")} />;
-  if (view === "parent") return <ParentView onBack={() => setView("home")} />;
-  if (view === "progress") return <ProgressView onBack={() => setView("home")} />;
-  if (view === "comments") return <CommentsView onBack={() => setView("home")} />;
+  if (section === "scores") return <AdminView onBack={() => setSection(null)} />;
+  if (section === "progress") return <ProgressView onBack={() => setSection(null)} />;
+  if (section === "comments") return <CommentsView onBack={() => setSection(null)} />;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center px-4 py-8 sm:py-12">
       <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-80 h-80 bg-violet-100/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
-      <div className="relative z-10 text-center mb-8" style={{ animation: "fadeIn 0.5s ease-out both" }}>
-        <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-3xl soft-shadow-lg mb-4 text-3xl sm:text-4xl">
-          🏫
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">ШколаПро</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">Система учёта баллов</p>
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:bg-white/80 hover:text-foreground transition-colors"
+        >
+          <Icon name="LogOut" size={15} />
+          Выйти
+        </button>
       </div>
 
-      <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-3xl">
+      <div className="relative z-10 text-center mb-8" style={{ animation: "fadeIn 0.5s ease-out both" }}>
+        <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-3xl soft-shadow-lg mb-4 text-3xl sm:text-4xl">🏫</div>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-1">ШколаПро</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Панель администратора</p>
+      </div>
+
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full max-w-2xl">
         {[
-          {
-            key: "admin" as const,
-            emoji: "🏫",
-            title: "Администратор",
-            desc: "Вносить баллы по детям",
-            color: "from-blue-100 to-blue-50",
-            accent: "bg-blue-500 hover:bg-blue-600",
-            delay: "0.15s",
-          },
-          {
-            key: "parent" as const,
-            emoji: "👨‍👩‍👧",
-            title: "Родитель",
-            desc: "Динамика баллов ребёнка",
-            color: "from-violet-100 to-violet-50",
-            accent: "bg-violet-500 hover:bg-violet-600",
-            delay: "0.25s",
-          },
-          {
-            key: "progress" as const,
-            emoji: "📊",
-            title: "Прогресс",
-            desc: "Таблица прогресса из Excel",
-            color: "from-orange-100 to-orange-50",
-            accent: "bg-orange-500 hover:bg-orange-600",
-            delay: "0.35s",
-          },
-          {
-            key: "comments" as const,
-            emoji: "💬",
-            title: "Комментарии",
-            desc: "Заметки по каждому ребёнку",
-            color: "from-emerald-100 to-emerald-50",
-            accent: "bg-emerald-500 hover:bg-emerald-600",
-            delay: "0.45s",
-          },
-        ].map((r) => (
+          { key: "scores" as const,   emoji: "📋", title: "Баллы",        desc: "Вносить и редактировать баллы детей",     color: "from-blue-100 to-blue-50",    accent: "bg-blue-500 hover:bg-blue-600" },
+          { key: "progress" as const, emoji: "📊", title: "Прогресс",     desc: "Таблица прогресса по обучению из Excel",  color: "from-orange-100 to-orange-50", accent: "bg-orange-500 hover:bg-orange-600" },
+          { key: "comments" as const, emoji: "💬", title: "Комментарии",  desc: "Заметки и сообщения по каждому ребёнку", color: "from-emerald-100 to-emerald-50",accent: "bg-emerald-500 hover:bg-emerald-600" },
+        ].map((r, i) => (
           <button
             key={r.key}
-            onClick={() => setView(r.key)}
-            className={`bg-gradient-to-br ${r.color} border-2 border-white rounded-2xl sm:rounded-3xl p-4 sm:p-7 text-left soft-shadow hover-lift transition-all`}
-            style={{ animation: `fadeIn 0.5s ease-out ${r.delay} both` }}
+            onClick={() => setSection(r.key)}
+            className={`bg-gradient-to-br ${r.color} border-2 border-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 text-left soft-shadow hover-lift transition-all`}
+            style={{ animation: `fadeIn 0.5s ease-out ${i * 0.1 + 0.1}s both` }}
           >
-            <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{r.emoji}</div>
-            <h3 className="text-sm sm:text-lg font-bold text-foreground mb-1">{r.title}</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-5 leading-relaxed">{r.desc}</p>
+            <div className="text-3xl mb-3">{r.emoji}</div>
+            <h3 className="text-base sm:text-lg font-bold text-foreground mb-1">{r.title}</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">{r.desc}</p>
             <div className={`${r.accent} text-white text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl inline-flex items-center gap-1.5 transition-colors`}>
-              Войти
-              <Icon name="ArrowRight" size={13} />
+              Открыть <Icon name="ArrowRight" size={13} />
             </div>
           </button>
         ))}
       </div>
     </div>
+  );
+}
+
+// ─── Login Screen ─────────────────────────────────────────────────────────────
+const ADMIN_LOGIN = "prekrasno";
+
+function LoginScreen({ onAdmin, onParent }: { onAdmin: () => void; onParent: (login: string) => void }) {
+  const [login, setLogin] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    const val = login.trim().toLowerCase();
+    if (!val) return;
+    if (val === ADMIN_LOGIN) { onAdmin(); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const children = await apiGetChildren();
+      const found = children.find((c) => c.parentLogin.toLowerCase() === val);
+      if (found) { onParent(val); }
+      else { setError("Логин не найден. Уточните у администратора."); }
+    } catch { setError("Ошибка соединения. Попробуйте ещё раз."); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center px-4">
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-violet-100/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-sm" style={{ animation: "fadeIn 0.5s ease-out both" }}>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl soft-shadow-lg mb-5 text-4xl">🏫</div>
+          <h1 className="text-3xl font-bold text-foreground mb-1">ШколаПро</h1>
+          <p className="text-muted-foreground text-sm">Введите свой логин для входа</p>
+        </div>
+
+        <div className="bg-white rounded-3xl soft-shadow-lg p-8 space-y-4">
+          <input
+            autoFocus
+            placeholder="Ваш логин"
+            value={login}
+            onChange={(e) => { setLogin(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            className="w-full px-4 py-3 rounded-xl border border-border text-sm outline-none focus:border-violet-400 transition-colors text-center font-mono"
+          />
+          {error && (
+            <p className="text-xs text-red-500 text-center">{error}</p>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !login.trim()}
+            className="w-full py-3 bg-violet-500 text-white font-semibold rounded-xl hover:bg-violet-600 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+          >
+            {loading && <Icon name="Loader2" size={16} />}
+            {loading ? "Проверяю…" : "Войти"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function Index() {
+  const [view, setView] = useState<"login" | "admin" | "parent">("login");
+  const [parentLogin, setParentLogin] = useState("");
+
+  if (view === "admin") return <AdminDashboard onLogout={() => setView("login")} />;
+  if (view === "parent") return (
+    <ParentView
+      initialLogin={parentLogin}
+      onBack={() => setView("login")}
+    />
+  );
+
+  return (
+    <LoginScreen
+      onAdmin={() => setView("admin")}
+      onParent={(login) => { setParentLogin(login); setView("parent"); }}
+    />
   );
 }
