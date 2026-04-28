@@ -1115,6 +1115,9 @@ function CommentsView({ onBack }: { onBack: () => void }) {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadComments = async (childId: string) => {
@@ -1164,6 +1167,27 @@ function CommentsView({ onBack }: { onBack: () => void }) {
       textareaRef.current?.focus();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditStart = (c: Comment) => {
+    setEditingId(c.id);
+    setEditText(c.text);
+  };
+
+  const handleEditSave = async (id: number) => {
+    if (!editText.trim()) return;
+    setEditSaving(true);
+    try {
+      await fetch(SAVE_COMMENT_URL, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, text: editText.trim() }),
+      });
+      setComments((prev) => prev.map((c) => c.id === id ? { ...c, text: editText.trim() } : c));
+      setEditingId(null);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -1265,17 +1289,59 @@ function CommentsView({ onBack }: { onBack: () => void }) {
                           key={c.id}
                           className="group relative bg-slate-50 rounded-xl px-4 py-3 border border-border"
                         >
-                          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-[11px] text-muted-foreground">{formatDate(c.created_at)}</span>
-                            <button
-                              onClick={() => handleDelete(c.id)}
-                              disabled={deleting === c.id}
-                              className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all p-1 rounded-lg hover:bg-red-50"
-                            >
-                              <Icon name={deleting === c.id ? "Loader2" : "Trash2"} size={13} />
-                            </button>
-                          </div>
+                          {editingId === c.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                autoFocus
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleEditSave(c.id);
+                                  if (e.key === "Escape") setEditingId(null);
+                                }}
+                                rows={3}
+                                className="w-full px-3 py-2 rounded-lg border border-emerald-300 text-sm outline-none focus:ring-1 focus:ring-emerald-200 transition-all resize-none bg-white"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditSave(c.id)}
+                                  disabled={editSaving || !editText.trim()}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+                                >
+                                  <Icon name={editSaving ? "Loader2" : "Check"} size={12} />
+                                  {editSaving ? "Сохраняю…" : "Сохранить"}
+                                </button>
+                                <button
+                                  onClick={() => setEditingId(null)}
+                                  className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-lg hover:bg-slate-200 transition-colors"
+                                >
+                                  Отмена
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{c.text}</p>
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="text-[11px] text-muted-foreground">{formatDate(c.created_at)}</span>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button
+                                    onClick={() => handleEditStart(c)}
+                                    className="text-slate-400 hover:text-blue-500 p-1 rounded-lg hover:bg-blue-50 transition-colors"
+                                  >
+                                    <Icon name="Pencil" size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(c.id)}
+                                    disabled={deleting === c.id}
+                                    className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                                  >
+                                    <Icon name={deleting === c.id ? "Loader2" : "Trash2"} size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
