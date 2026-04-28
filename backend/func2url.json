@@ -1,7 +1,6 @@
 {
   "upload-image": "https://functions.poehali.dev/4aac4414-45eb-493f-a6ad-482423971512",
   "get-comments": "https://functions.poehali.dev/2115d774-b0b9-4412-bcae-78b0f8bcb563",
-  "transcribe-audio": "https://functions.poehali.dev/a8cc49a2-4569-4c25-af03-c3c9fb3bb8f3",
   "save-comment": "https://functions.poehali.dev/86719a99-e955-46c3-a4f0-3110732c4ed9",
   "comments": "https://functions.poehali.dev/90a6388b-783b-4bc4-9811-3eb26fddd21c"
 }
