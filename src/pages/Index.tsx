@@ -24,20 +24,28 @@ interface Child {
 
 function getBarColor(score: number, system: System, prevScore: number | null): string {
   if (system === 1) {
-    if (score <= 109) return "#ef4444"; // red
-    if (score <= 134) return "#eab308"; // yellow
-    return "#22c55e"; // green
+    if (score <= 109) return "#bb393b";
+    if (score <= 134) return "#f6d60d";
+    return "#2db400";
   }
   if (system === 2) {
-    if (score <= 19) return "#ef4444";
-    if (score <= 29) return "#eab308";
-    return "#22c55e";
+    if (score <= 19) return "#bb393b";
+    if (score <= 29) return "#f6d60d";
+    return "#2db400";
   }
-  // system 3 — base sky blue, compare with prev
-  if (prevScore === null) return "#38bdf8"; // sky
-  if (score > prevScore) return "#22c55e"; // growth = green
-  if (score < prevScore) return "#ef4444"; // drop = red
-  return "#38bdf8"; // same = sky
+  if (prevScore === null) return "#f6d60d";
+  if (score > prevScore) return "#2db400";
+  if (score < prevScore) return "#bb393b";
+  return "#f6d60d";
+}
+
+function hexToRgb(hex: string) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+}
+function adjustColor(hex: string, factor: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
 }
 
 // ─── Initial demo data ────────────────────────────────────────────────────────
@@ -189,10 +197,10 @@ function BarChart({
 
   const legendItems =
     system === 1
-      ? [{ color: "#22c55e", label: "≥135" }, { color: "#eab308", label: "110–134" }, { color: "#ef4444", label: "0–109" }]
+      ? [{ color: "#2db400", label: "≥135" }, { color: "#f6d60d", label: "110–134" }, { color: "#bb393b", label: "0–109" }]
       : system === 2
-      ? [{ color: "#22c55e", label: "≥30" }, { color: "#eab308", label: "20–29" }, { color: "#ef4444", label: "0–19" }]
-      : [{ color: "#22c55e", label: "Рост" }, { color: "#38bdf8", label: "Без изм." }, { color: "#ef4444", label: "Снижение" }];
+      ? [{ color: "#2db400", label: "≥30" }, { color: "#f6d60d", label: "20–29" }, { color: "#bb393b", label: "0–19" }]
+      : [{ color: "#2db400", label: "Рост" }, { color: "#f6d60d", label: "Без изм." }, { color: "#bb393b", label: "Снижение" }];
 
   const COL_W = 36;
 
@@ -255,26 +263,22 @@ function BarChart({
                 }
               }
 
-              const color = isEmpty ? "#e2e8f0" : getBarColor(score, system, prevScore);
+              const baseColor = isEmpty ? "#cbd5e1" : getBarColor(score, system, prevScore);
+              const frontColor = baseColor;
+              const sideColor = adjustColor(baseColor, 0.62);
+              const topColor = adjustColor(baseColor, 1.18);
 
-              const darken = (hex: string, amt = 40) => {
-                const n = parseInt(hex.slice(1), 16);
-                const r = Math.max(0, (n >> 16) - amt);
-                const g = Math.max(0, ((n >> 8) & 0xff) - amt);
-                const b = Math.max(0, (n & 0xff) - amt);
-                return `rgb(${r},${g},${b})`;
-              };
-              const lighten = (hex: string, amt = 40) => {
-                const n = parseInt(hex.slice(1), 16);
-                const r = Math.min(255, (n >> 16) + amt);
-                const g = Math.min(255, ((n >> 8) & 0xff) + amt);
-                const b = Math.min(255, (n & 0xff) + amt);
-                return `rgb(${r},${g},${b})`;
-              };
-              const sideColor = color.startsWith("#") ? darken(color, 45) : color;
-              const topColor = color.startsWith("#") ? lighten(color, 30) : color;
-              const BAR_W = 22;
-              const DEPTH = 7;
+              const BAR_W = 20;
+              const D = 8; // глубина 3D
+
+              // SVG-параллелепипед: передняя + правая боковая + верхняя грань
+              const totalW = BAR_W + D;
+              const totalH = barH + D;
+
+              // Точки граней
+              // Передняя: (0, D) → (BAR_W, D) → (BAR_W, totalH) → (0, totalH)
+              // Правая: (BAR_W, D) → (totalW, 0) → (totalW, barH) → (BAR_W, totalH)
+              // Верхняя: (0, D) → (D, 0) → (totalW, 0) → (BAR_W, D)
 
               return (
                 <div
@@ -282,29 +286,31 @@ function BarChart({
                   className="flex flex-col items-center"
                   style={{ width: `${COL_W}px`, flexShrink: 0, height: `${CHART_H}px`, justifyContent: "flex-end" }}
                 >
-                  <div style={{ position: "relative", width: BAR_W, height: barH }}>
+                  <svg
+                    width={totalW}
+                    height={totalH}
+                    style={{
+                      display: "block",
+                      filter: e.best ? "drop-shadow(0 0 6px rgba(245,158,11,0.8))" : "drop-shadow(0 3px 6px rgba(0,0,0,0.22))",
+                      overflow: "visible",
+                    }}
+                  >
                     {/* Передняя грань */}
-                    <div style={{
-                      position: "absolute", left: 0, top: DEPTH, width: BAR_W, height: barH - DEPTH,
-                      background: `linear-gradient(to right, ${sideColor} 0%, ${color} 30%, ${color} 100%)`,
-                      boxShadow: e.best ? "0 0 10px rgba(245,158,11,0.7)" : "inset -3px 0 6px rgba(0,0,0,0.15)",
-                    }} />
+                    <polygon
+                      points={`0,${D} ${BAR_W},${D} ${BAR_W},${totalH} 0,${totalH}`}
+                      fill={frontColor}
+                    />
                     {/* Правая боковая грань */}
-                    <div style={{
-                      position: "absolute", right: -DEPTH, top: DEPTH + DEPTH * 0.5, width: DEPTH, height: barH - DEPTH,
-                      background: sideColor,
-                      transform: "skewY(-45deg)",
-                      transformOrigin: "top left",
-                    }} />
+                    <polygon
+                      points={`${BAR_W},${D} ${totalW},0 ${totalW},${barH} ${BAR_W},${totalH}`}
+                      fill={sideColor}
+                    />
                     {/* Верхняя грань */}
-                    <div style={{
-                      position: "absolute", left: 0, top: 0, width: BAR_W + DEPTH, height: DEPTH,
-                      background: topColor,
-                      transform: "skewX(-45deg) translateX(0px)",
-                      transformOrigin: "bottom left",
-                      clipPath: `polygon(${DEPTH}px 0%, 100% 0%, ${BAR_W}px 100%, 0% 100%)`,
-                    }} />
-                  </div>
+                    <polygon
+                      points={`0,${D} ${D},0 ${totalW},0 ${BAR_W},${D}`}
+                      fill={topColor}
+                    />
+                  </svg>
                 </div>
               );
             })}
