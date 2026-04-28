@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import Icon from "@/components/ui/icon";
 
@@ -127,12 +127,24 @@ interface Props {
 
 export default function ProgressView({ onBack }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [data, setData] = useState<ProgressData | null>(() => loadData().data);
   const [fileName, setFileName] = useState<string>(() => loadData().fileName);
   const [error, setError] = useState("");
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
   const [saved, setSaved] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const ro = new ResizeObserver(() => {
+      setHeaderHeight(headerRef.current?.offsetHeight ?? 0);
+    });
+    ro.observe(headerRef.current);
+    setHeaderHeight(headerRef.current.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,11 +182,11 @@ export default function ProgressView({ onBack }: Props) {
   const COL_NAME = 104;
   const COL_SUBJ = 150;
   const COL_CELL = 27;
-  const HEADER_TOP = 0;
+  const HEADER_TOP = headerHeight;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="bg-white sticky top-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
+      <header ref={headerRef} className="bg-white sticky top-0 z-30" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07)" }}>
         <div className="px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
@@ -285,7 +297,7 @@ export default function ProgressView({ onBack }: Props) {
               ))}
             </div>
           <div id="progress-print-area" className="rounded-[2rem]" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)", overflow: "clip" }}>
-            <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 110px)" }}>
+            <div className="overflow-x-auto">
               <table style={{
                 borderCollapse: "separate",
                 borderSpacing: 0,
