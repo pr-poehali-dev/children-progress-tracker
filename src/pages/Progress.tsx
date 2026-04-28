@@ -199,7 +199,22 @@ export default function ProgressView({ onBack }: Props) {
             {data && (
               <>
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    const el = document.getElementById("progress-print-area");
+                    if (el) {
+                      el.style.transform = "";
+                      const tableWidth = el.scrollWidth;
+                      const pageWidth = 1122;
+                      const scale = Math.min(1, pageWidth / tableWidth);
+                      el.style.transform = `scale(${scale})`;
+                      el.style.width = `${100 / scale}%`;
+                    }
+                    window.print();
+                    setTimeout(() => {
+                      const el2 = document.getElementById("progress-print-area");
+                      if (el2) { el2.style.transform = ""; el2.style.width = ""; }
+                    }, 1000);
+                  }}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
                   <Icon name="Printer" size={15} />

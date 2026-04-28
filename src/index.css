@@ -121,17 +121,19 @@
   }
 
   #progress-print-area {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     overflow: visible !important;
     transform-origin: top left;
-    transform: scale(0.5);
-    width: 200%;
+  }
+
+  #progress-print-area .overflow-auto {
+    overflow: visible !important;
+    max-height: none !important;
   }
 
   #progress-print-area table {
-    width: 100% !important;
     min-width: unset !important;
     border-collapse: collapse !important;
     font-size: 9pt;
