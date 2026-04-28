@@ -197,15 +197,24 @@ export default function ProgressView({ onBack }: Props) {
               Загрузить Excel
             </button>
             {data && (
-              <button
-                onClick={handleSave}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                  saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
-                }`}
-              >
-                <Icon name={saved ? "Check" : "Save"} size={15} />
-                {saved ? "Сохранено!" : "Сохранить"}
-              </button>
+              <>
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  <Icon name="Printer" size={15} />
+                  Печать
+                </button>
+                <button
+                  onClick={handleSave}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    saved ? "bg-emerald-500 text-white" : "bg-blue-500 text-white hover:bg-blue-600"
+                  }`}
+                >
+                  <Icon name={saved ? "Check" : "Save"} size={15} />
+                  {saved ? "Сохранено!" : "Сохранить"}
+                </button>
+              </>
             )}
           </div>
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={handleImport} />
@@ -239,7 +248,7 @@ export default function ProgressView({ onBack }: Props) {
         {data && (() => {
           const allSubjects = Array.from(new Set(data.children.flatMap(c => c.rows.map(r => r.subject)))).sort();
           return (<>
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap gap-2 mb-3 print-hide">
               <button
                 onClick={() => setSubjectFilter(new Set())}
                 className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${subjectFilter.size === 0 ? "bg-blue-500 text-white border-blue-500" : "bg-white text-slate-500 border-slate-200 hover:border-blue-300"}`}
@@ -260,7 +269,7 @@ export default function ProgressView({ onBack }: Props) {
                 </button>
               ))}
             </div>
-          <div className="rounded-[2rem] overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
+          <div id="progress-print-area" className="rounded-[2rem] overflow-hidden" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)" }}>
             <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 110px)" }}>
               <table style={{
                 borderCollapse: "separate",

@@ -105,6 +105,59 @@
   }
 }
 
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #progress-print-area,
+  #progress-print-area * {
+    visibility: visible;
+  }
+
+  #progress-print-area {
+    position: fixed;
+    inset: 0;
+    overflow: visible !important;
+    width: 100%;
+    height: auto;
+  }
+
+  #progress-print-area table {
+    width: 100% !important;
+    min-width: unset !important;
+    border-collapse: collapse !important;
+    font-size: 7pt;
+    table-layout: auto !important;
+  }
+
+  #progress-print-area th,
+  #progress-print-area td {
+    position: static !important;
+    border: 0.5pt solid #999 !important;
+    padding: 2px 3px !important;
+    font-size: 7pt;
+    writing-mode: horizontal-tb !important;
+    height: auto !important;
+    white-space: nowrap;
+  }
+
+  #progress-print-area thead th {
+    background: #e8eef5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #progress-print-area .print-hide {
+    display: none !important;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
